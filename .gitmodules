@@ -1,0 +1,3 @@
+[submodule "src/deepCam"]
+	path = src/deepCam
+	url = git@github.com:azrael417/deepCam.git
