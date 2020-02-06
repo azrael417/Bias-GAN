@@ -31,7 +31,7 @@ ENV PROJ_LIB /opt/conda/share/proj
 RUN HOROVOD_GPU_ALLREDUCE=NCCL pip install --no-cache-dir horovod
 
 #install other python stuff necessary
-RUN pip install netcdf4 ecmwf-api-client cdsapi
+RUN pip install netcdf4 ecmwf-api-client cdsapi wandb
 
 ##install Torch2TRT
 #RUN cd /opt; git clone https://github.com/NVIDIA-AI-IOT/torch2trt \
@@ -44,6 +44,7 @@ COPY ./src /opt
 #copy cert:
 COPY no-git/ecmwf_cert.key /root/.ecmwfapirc
 COPY no-git/copernicus_cert.key /root/.cdsapirc
+COPY no-git/wandb_cert.key /root/.wandbirc
 
 #create additional folders for mapping data in
 RUN mkdir -p /data && mkdir -p /data && mkdir -p /data/output
