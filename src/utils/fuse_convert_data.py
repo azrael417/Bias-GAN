@@ -29,7 +29,7 @@ def get_data(filename, variables, array, index):
 
         
 #helper routine to do the fusing
-def fuse_to_numpy(outputpath, resultdf, variables):
+def fuse_to_numpy(outputpath, resultdf, variables, overwrite=False):
     
     #first, check if outputpath exists, otherwise create
     if not os.path.isdir(outputpath):
@@ -50,7 +50,7 @@ def fuse_to_numpy(outputpath, resultdf, variables):
         foutputname = os.path.join(outputpath, "filenames-"+feature[0]+"-"+str(feature[1])+"-"+str(feature[2])+".npy")
 
         #check if file exists
-        if os.path.isfile(outputname):
+        if os.path.isfile(outputname) and not overwrite:
             print("file {} already exists".format(outputname))
             continue
 
@@ -68,7 +68,7 @@ def fuse_to_numpy(outputpath, resultdf, variables):
         print("preparing {}".format(outputname))
         for idx, day in enumerate(tqdm(selectdf["day"].unique())):
             filename = selectdf.loc[ selectdf["day"] == day, "filename" ].values[0]
-            flist.append(filename)
+            flist += [filename]*24
             get_data(filename, variables, arr, idx*24)
 
         #store the stuff
@@ -79,6 +79,7 @@ def fuse_to_numpy(outputpath, resultdf, variables):
 #global parameters
 nraid = 4
 variables = ["u10", "v10", "d2m", "t2m", "msl", "mwd", "mwp", "sst", "swh", "sp", "tp"]
+overwrite = False
 
 for idx in range(0,nraid):
 
@@ -87,7 +88,7 @@ for idx in range(0,nraid):
     
     for gpudir in os.listdir(root):
 
-        if (gpudir!="gpu0"):
+        if (gpudir not in ["gpu0", "gpu1", "gpu2", "gpu3"] ):
             continue
         
         #get all the files, sort
@@ -116,9 +117,8 @@ for idx in range(0,nraid):
 
         #do the fusing
         outputpath = os.path.join(root, gpudir, "all")
-        fuse_to_numpy(outputpath, resultdf, variables)
+        fuse_to_numpy(outputpath, resultdf, variables, overwrite)
         
-        break
     break
 
         
