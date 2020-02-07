@@ -26,4 +26,4 @@ nvidia-docker run \
 	      --volume "/raid3/data/tkurth:/data3:rw" \
 	      --volume "/raid5/data/tkurth:/data5:rw" \
 	      --volume "/raid7/data/tkurth:/data7:rw" \
-	      --workdir "/opt/deepCam" -it tkurth/pytorch-bias_gan:latest /bin/bash
+	      --workdir "/opt/deepCam" -it registry.services.nersc.gov/tkurth/pytorch-bias_gan:latest /bin/bash
