@@ -85,7 +85,7 @@ def fuse_to_numpy(outputpath, resultdf, variables, data_format="nchw", overwrite
 #global parameters
 nraid = 4
 variables = ["u10", "v10", "d2m", "t2m", "msl", "mwd", "mwp", "sst", "swh", "sp", "tp"]
-overwrite = True
+overwrite = False
 data_format = "nchw"
 
 for idx in range(0,nraid):
@@ -95,8 +95,8 @@ for idx in range(0,nraid):
     
     for gpudir in os.listdir(root):
 
-        if (gpudir not in ["gpu0", "gpu1", "gpu2", "gpu3"] ):
-            continue
+        #if (gpudir not in ["gpu0", "gpu1", "gpu2", "gpu3"] ):
+        #    continue
         
         #get all the files, sort
         resultdf = pd.DataFrame([{"dataset":y[0],
@@ -125,7 +125,4 @@ for idx in range(0,nraid):
         #do the fusing
         outputpath = os.path.join(root, gpudir, "all")
         fuse_to_numpy(outputpath, resultdf, variables, data_format, overwrite)
-        
-    break
 
-        
