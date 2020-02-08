@@ -13,10 +13,14 @@ variables = [ '10m_u_component_of_wind', '10m_v_component_of_wind', '2m_dewpoint
               '2m_temperature', 'mean_sea_level_pressure', 'mean_wave_direction',
               'mean_wave_period', 'sea_surface_temperature', 'significant_height_of_combined_wind_waves_and_swell',
               'surface_pressure', 'total_precipitation']
-months = ["{:02d}".format(x) for x in range(1,13)]
-days = ["{:02d}".format(x) for x in range(1,32)]
 times = ["{:02d}:00".format(x) for x in range(0,24)]
-years = ['1979', '1980', '1981', '1982']
+#days = ["{:02d}".format(x) for x in range(1,32)]
+#months = ["{:02d}".format(x) for x in range(1,13)]
+#years = ['1979', '1980', '1981', '1982']
+
+days = ["23"]
+months = ["11"]
+years = ["1981"]
 
 #loop over years
 for idx, year in enumerate(years):

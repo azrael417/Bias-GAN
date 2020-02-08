@@ -22,8 +22,8 @@ for idx in range(0,nraid):
 
     for gpudir in os.listdir(root):
         
-        if (gpudir!="gpu0"):
-            continue
+        #if (gpudir!="gpu0"):
+        #    continue
 
         #this will be the outputpath
         outputpath = os.path.join(root,gpudir)
@@ -40,7 +40,7 @@ for idx in range(0,nraid):
         n_validation = int(np.ceil(len(files)*validation_fraction))
         n_test = len(files) - n_validation - n_train
         if n_test < 0:
-            raise ValueError("Warning, you have more validations and training files than actual files, adjust your splits")
+            raise ValueError("Warning, you have more validations and training files than actual files in directory {}, adjust your splits.".format(os.path.join(outputpath, 'all')))
 
         #do the splitting
         train_files = files[:n_train]
