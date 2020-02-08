@@ -18,18 +18,21 @@ def get_dimensions(filename):
 
 
 #data
-def get_data(filename, variables, array, index):
+def get_data(filename, variables, array, index, data_format):
 
     #open netcdf file
     with nc.Dataset(filename, "r") as ncf:
         for idx, variable in enumerate(variables):
             tmparr = (ncf[variable][...]).astype(np.float32)
-            array[index:index+24,:,:,idx] = tmparr[...]
+            if data_format == "nchw":
+                array[index:index+24,idx,:,:] = tmparr[...]
+            else:
+                array[index:index+24,:,:,idx] = tmparr[...]
     return 
 
         
 #helper routine to do the fusing
-def fuse_to_numpy(outputpath, resultdf, variables, overwrite=False):
+def fuse_to_numpy(outputpath, resultdf, variables, data_format="nchw", overwrite=False):
     
     #first, check if outputpath exists, otherwise create
     if not os.path.isdir(outputpath):
@@ -58,7 +61,10 @@ def fuse_to_numpy(outputpath, resultdf, variables, overwrite=False):
         selectdf = resultdf[ (resultdf["dataset"] == feature[0]) & (resultdf["year"] == feature[1]) & (resultdf["month"] == feature[2]) ]
         
         #the full dims are: dims[0]*num_files, dims[1], dims[2]
-        full_dims = (dims[0]*selectdf.shape[0], dims[1], dims[2], len(variables))
+        if data_format == "nchw":
+            full_dims = (dims[0]*selectdf.shape[0], len(variables), dims[1], dims[2])
+        else:
+            full_dims = (dims[0]*selectdf.shape[0], dims[1], dims[2], len(variables))
 
         #allocate array
         arr = np.zeros( full_dims, dtype=np.float32 )
@@ -69,7 +75,7 @@ def fuse_to_numpy(outputpath, resultdf, variables, overwrite=False):
         for idx, day in enumerate(tqdm(selectdf["day"].unique())):
             filename = selectdf.loc[ selectdf["day"] == day, "filename" ].values[0]
             flist += [filename]*24
-            get_data(filename, variables, arr, idx*24)
+            get_data(filename, variables, arr, idx*24, data_format)
 
         #store the stuff
         np.save(outputname, arr)
@@ -79,7 +85,8 @@ def fuse_to_numpy(outputpath, resultdf, variables, overwrite=False):
 #global parameters
 nraid = 4
 variables = ["u10", "v10", "d2m", "t2m", "msl", "mwd", "mwp", "sst", "swh", "sp", "tp"]
-overwrite = False
+overwrite = True
+data_format = "nchw"
 
 for idx in range(0,nraid):
 
@@ -117,7 +124,7 @@ for idx in range(0,nraid):
 
         #do the fusing
         outputpath = os.path.join(root, gpudir, "all")
-        fuse_to_numpy(outputpath, resultdf, variables, overwrite)
+        fuse_to_numpy(outputpath, resultdf, variables, data_format, overwrite)
         
     break
 
