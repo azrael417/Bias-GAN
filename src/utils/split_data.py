@@ -21,12 +21,15 @@ for idx in range(0,nraid):
     root = '/data{}/ecmwf_data'.format(2 * idx + 1)
 
     for gpudir in os.listdir(root):
+
+        if not gpudir.startswith("gpu"):
+            continue
         
         #if (gpudir!="gpu0"):
         #    continue
 
         #this will be the outputpath
-        outputpath = os.path.join(root,gpudir)
+        outputpath = os.path.join(root, gpudir)
         
         #sor files to have definite state
         files = sorted([ os.path.join(outputpath, 'all', x) for x in os.listdir(os.path.join(outputpath, 'all')) if x.endswith(".npy") and x.startswith("data-") ])
@@ -72,10 +75,10 @@ for idx in range(0,nraid):
         if os.path.isdir(os.path.join(outputpath,"validation")):
             #clean up first
             shutil.rmtree(os.path.join(outputpath,"validation"))
-	#create directory
+        #create directory
         os.makedirs(os.path.join(outputpath,"validation"))
         #loop over files and create symbolic links
-	for f in validation_files:
+        for f in validation_files:
 
             #data first
             infile = os.path.join(f[0],"data-"+f[1])
