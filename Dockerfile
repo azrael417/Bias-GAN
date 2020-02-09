@@ -51,6 +51,9 @@ RUN cd /opt/numpy_reader && python setup.py install
 COPY ./src/deepCam /opt/deepCam
 COPY ./src/utils /opt/utils
 
+#init empty git repo so that wandb works
+#RUN cd /opt/deepCam && git init
+
 #copy cert:
 COPY no-git/ecmwf_cert.key /root/.ecmwfapirc
 COPY no-git/copernicus_cert.key /root/.cdsapirc
