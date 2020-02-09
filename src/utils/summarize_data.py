@@ -49,12 +49,13 @@ def create_token(filename, data_format="nchw"):
 nraid = 4
 overwrite = False
 data_format = "nchw"
+data_path_prefix = "/"
 
 token = None
 for idx in range(0,nraid):
 
     #root path
-    root = '/data{}/ecmwf_data'.format(2 * idx + 1)
+    root = os.path.join( data_path_prefix, 'data{}', 'ecmwf_data'.format(2 * idx + 1) )
     
     for gpudir in os.listdir(root):
 
@@ -70,13 +71,10 @@ for idx in range(0,nraid):
 #distribute the file
 for idx in range(0,nraid):
 
-        #root path
-        root = '/data{}/ecmwf_data'.format(2 * idx + 1)
+    #root path
+    root = os.path.join( data_path_prefix, 'data{}', 'ecmwf_data'.format(2 * idx + 1) )
 
-        for gpudir in os.listdir(root):
-
-            #save results
-            np.savez(os.path.join(root, gpudir, "train", "stats.npz"), count=token[0], mean=token[1], sqmean=token[2], minval=token[3], maxval=token[4])
-            
-##save results
-#np.savez("stats.npz", count=token[0], mean=token[1], sqmean=token[2], minval=token[3], maxval=token[4])
+    for gpudir in os.listdir(root):
+        
+        #save results
+        np.savez(os.path.join(root, gpudir, "train", "stats.npz"), count=token[0], mean=token[1], sqmean=token[2], minval=token[3], maxval=token[4])

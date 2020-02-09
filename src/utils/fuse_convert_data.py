@@ -87,11 +87,12 @@ nraid = 4
 variables = ["u10", "v10", "d2m", "t2m", "msl", "mwd", "mwp", "sst", "swh", "sp", "tp"]
 overwrite = False
 data_format = "nchw"
+data_path_prefix = "/"
 
 for idx in range(0,nraid):
 
     #root path
-    root = '/data{}/ecmwf_data'.format(2 * idx + 1)
+    root = os.path.join( data_path_prefix, 'data{}', 'ecmwf_data'.format(2 * idx + 1) )
     
     for gpudir in os.listdir(root):
 

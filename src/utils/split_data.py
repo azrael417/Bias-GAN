@@ -10,6 +10,7 @@ train_fraction = 0.6
 validation_fraction = 0.2
 test_fraction = 0.2
 seed = 13476251
+data_path_prefix = "/"
 
 #init rng
 rng = np.random.RandomState(seed)
@@ -18,7 +19,7 @@ rng = np.random.RandomState(seed)
 for idx in range(0,nraid):
 
     #root path
-    root = '/data{}/ecmwf_data'.format(2 * idx + 1)
+    root = os.path.join(data_path_prefix, 'data{}', 'ecmwf_data'.format(2 * idx + 1))
 
     for gpudir in os.listdir(root):
 
