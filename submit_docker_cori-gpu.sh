@@ -8,8 +8,8 @@
 #SBATCH --mem=30GB
 #SBATCH -t 04:10:00
 #SBATCH --image=registry.services.nersc.gov/tkurth/pytorch-bias_gan:latest
-#SBATCH --volume="/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data1:/data1:rw"
-#SBATCH --volume="/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data3:/data3:rw"
-#SBATCH --volume="/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data5:/data5:rw"
-#SBATCH --volume="/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data7:/data7:rw"
+#SBATCH --volume="/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/data1:/data1:rw"
+#SBATCH --volume="/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/data3:/data3:rw"
+#SBATCH --volume="/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/data5:/data5:rw"
+#SBATCH --volume="/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/data7:/data7:rw"
 

@@ -19,7 +19,7 @@ rng = np.random.RandomState(seed)
 for idx in range(0,nraid):
 
     #root path
-    root = os.path.join(data_path_prefix, 'data{}', 'ecmwf_data'.format(2 * idx + 1))
+    root = os.path.join(data_path_prefix, 'data{}'.format(2 * idx + 1), 'ecmwf_data')
 
     for gpudir in os.listdir(root):
 
