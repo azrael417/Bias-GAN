@@ -67,3 +67,23 @@ for idx in range(0,nraid):
             outfile = os.path.join(outputpath,"train","filenames-"+f[1])
             os.symlink(infile, outfile)
 
+        #validation files
+        #prepare directory
+        if os.path.isdir(os.path.join(outputpath,"validation")):
+            #clean up first
+            shutil.rmtree(os.path.join(outputpath,"validation"))
+	#create directory
+        os.makedirs(os.path.join(outputpath,"validation"))
+        #loop over files and create symbolic links
+	for f in validation_files:
+
+            #data first
+            infile = os.path.join(f[0],"data-"+f[1])
+            outfile = os.path.join(outputpath,"validation","data-"+f[1])
+            os.symlink(infile, outfile)
+
+            #filenames next
+            infile = os.path.join(f[0],"filenames-"+f[1])
+            outfile = os.path.join(outputpath,"validation","filenames-"+f[1])
+            os.symlink(infile, outfile)
+
