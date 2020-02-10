@@ -59,6 +59,9 @@ for idx in range(0,nraid):
     
     for gpudir in os.listdir(root):
 
+        if not gpudir.startswith("gpu"):
+            continue
+        
         files = [ os.path.join(root, gpudir, 'train', x)  for x in os.listdir(os.path.join(root, gpudir, 'train')) \
                   if x.endswith('.npy') and x.startswith('data-') ]
 
@@ -75,6 +78,9 @@ for idx in range(0,nraid):
     root = os.path.join( data_path_prefix, 'data{}'.format(2 * idx + 1), 'ecmwf_data' )
 
     for gpudir in os.listdir(root):
+
+        if not gpudir.startswith("gpu"):
+            continue
         
         #save results
         np.savez(os.path.join(root, gpudir, "train", "stats.npz"), count=token[0], mean=token[1], sqmean=token[2], minval=token[3], maxval=token[4])

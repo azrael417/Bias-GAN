@@ -6,8 +6,10 @@ import numpy as np
 nraid = 4
 overwrite = False
 data_format = "nchw"
-input_file_path = "/"
-data_path_prefix = "/"
+#input_file_path = "/"
+input_file_path = "/global/cscratch1/sd/tkurth/ECMWF/data"
+#data_path_prefix = "/"
+data_path_prefix = "/global/cscratch1/sd/tkurth/ECMWF/data"
 
 #create inputfilename
 input_file = os.path.join(input_file_path, "stats.npz")
@@ -20,6 +22,9 @@ for idx in range(0,nraid):
 
     for gpudir in os.listdir(root):
 
+        if not gpudir.startswith("gpu"):
+            continue
+        
         #output file
         output_file = os.path.join(root, gpudir, "train", "stats.npz")
         

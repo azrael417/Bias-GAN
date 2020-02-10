@@ -11,7 +11,8 @@ validation_fraction = 0.2
 test_fraction = 0.2
 seed = 13476251
 #data_path_prefix = "/"
-data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data"
+#data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data"
+data_path_prefix = "/global/cscratch1/sd/tkurth/ECMWF/data"
 
 #init rng
 rng = np.random.RandomState(seed)
