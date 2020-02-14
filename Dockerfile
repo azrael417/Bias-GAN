@@ -29,7 +29,7 @@ RUN cd /opt && dpkg -i nvidia-machine-learning-repo-ubuntu1804_1.0.0-1_amd64.deb
 
 #Install conda prereqs
 RUN conda config --add channels conda-forge \
-    && conda install matplotlib basemap basemap-data-hires
+    && conda install matplotlib basemap basemap-data-hires pillow
 ENV PROJ_LIB /opt/conda/share/proj
 
 #install horovod

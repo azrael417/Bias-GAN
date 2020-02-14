@@ -26,9 +26,6 @@ for idx, year in enumerate(years):
 
         #distribute round robin in years 
         path = os.path.join(root_dir,'data{}'.format(2 * (idx % nraid) + 1), 'ecmwf_data', 'gpu{}'.format((idy // 3) + idx * 4))
-
-        print(path)
-        exit
         
         #create folder
         if not os.path.isdir(path):
