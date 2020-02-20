@@ -35,6 +35,9 @@ ENV PROJ_LIB /opt/conda/share/proj
 #install horovod
 RUN HOROVOD_GPU_ALLREDUCE=NCCL pip install --no-cache-dir horovod
 
+#install mpi4py
+RUN pip install mpi4py
+
 #install other python stuff necessary
 RUN pip install netcdf4 ecmwf-api-client cdsapi wandb
 
