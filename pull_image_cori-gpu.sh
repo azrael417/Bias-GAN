@@ -1,3 +1,3 @@
 #!/bin/bash
 
-shifterimg pull registry.services.nersc.gov/tkurth/pytorch-bias_gan:latest
+shifterimg -v pull registry.services.nersc.gov/tkurth/pytorch-bias_gan:latest
