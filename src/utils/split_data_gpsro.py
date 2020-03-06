@@ -10,7 +10,8 @@ train_fraction = 0.8
 validation_fraction = 0.1
 test_fraction = 0.1
 seed = 13476251
-data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
+#data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
+data_path_prefix = "/raid1/data/tkurth/gpsro_data"
 
 #init rng
 rng = np.random.RandomState(seed)
