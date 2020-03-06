@@ -61,6 +61,7 @@ COPY ./src/utils /opt/utils
 COPY no-git/ecmwf_cert.key /root/.ecmwfapirc
 COPY no-git/copernicus_cert.key /root/.cdsapirc
 COPY no-git/wandb_cert.key /root/.wandbirc
+COPY no-git/wandb_cert_gpsro.key /root/.wandbirc_gpsro
 
 #create additional folders for mapping data in
 RUN mkdir -p /data && mkdir -p /data && mkdir -p /data/output
