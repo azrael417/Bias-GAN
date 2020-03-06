@@ -1,0 +1,97 @@
+#include "numpy_reader.h"
+
+	
+void NumpyReader::ParseHeader(){
+
+	//allocate data
+	size_t header_size = 256;
+	char* buffer = new char[header_size];
+	
+	//make sure the stuff is a NUMPY file
+	std::string header = fgets(buffer, 11, _fd);
+	if(header.find("NUMPY") == std::string::npos){
+		throw std::runtime_error("NumpyReader: file " + _filename + " is not a numpy file!");
+	}
+	
+	//read header
+	header = fgets(buffer, header_size, _fd);
+	
+	//extract dictionary info from header
+	std::smatch header_match;
+	if(!std::regex_search(header, header_match, _header_regex)){
+		throw std::runtime_error("NumpyReader: cannot parse header. File " + _filename + " is ill formatted or corrupt!");
+	}
+	
+	//type
+	std::string typestring = header_match[1].str();
+	_little_endian = (typestring[0] == '<' || typestring[0] == '|' ? true : false);
+	_typeid = typestring[1];
+	_typesize = static_cast<size_t>(stoi(typestring.substr(2)));
+	
+	//data order
+	if(header_match[2].str() == "False") _fortran_order = false;
+	else _fortran_order = true;
+	
+	//set sizes
+	std::string shapestring = header_match[3].str();
+	std::regex shape_regex{R"(,+)"}; // split on comma
+	std::sregex_token_iterator it{shapestring.begin(), shapestring.end(), shape_regex, -1};
+	std::vector<std::string> shapevec{it, {}};
+	
+	_numelem = 1;
+	for(unsigned int i=0; i < shapevec.size(); i++){
+		size_t elem = static_cast<size_t>(stoi(shapevec[i]));
+		_shape.push_back(elem);
+		_numelem *= elem;
+	}
+	
+	delete [] buffer;
+}
+
+void NumpyReader::ReadPayload(){
+  size_t bsize = _numelem * _typesize;
+  char* data = new char[bsize];
+  size_t nread = fread(data,1, bsize, _fd);
+  if(nread != bsize){
+    throw std::runtime_error("NumpyReader: size of data and read data are not compatible!");
+  }
+
+  for(unsigned int i=0; i< bsize; i += _typesize){
+    std::cout << static_cast<int64_t>(data[i]) << std::endl;
+  }
+  
+}
+
+void NumpyReader::PrintHeaderInfo(){
+	std::cout << "Fortran Order: " << (_fortran_order ? "Yes" : "No") << std::endl;
+	std::cout << "Endianess: " << (_little_endian ? "little endian" : "big endian") << std::endl;
+	std::cout << "Number of Elements: " << _numelem << std::endl;
+	std::cout << "Size per Element: " << _typesize << std::endl;
+	std::cout << "Type id: " << _typeid << std::endl;
+	if( _shape.size() > 0){
+		std::cout << "Shape: (" << _shape[0];
+		for(unsigned int i=1; i < _shape.size(); i++) std::cout << ", " << _shape[i];
+		std::cout << ")" << std::endl;
+	}
+	else{
+		std::cout << "Shape: (,)" << std::endl;
+	}
+}
+
+void NumpyReader::PrintDataInfo(){
+       
+}
+
+void NumpyReader::Read(){
+	//parse header first
+	ParseHeader();
+	
+	//print Info for  debugging
+	PrintHeaderInfo();
+	
+	//read payload
+	ReadPayload();
+
+	//print info
+	PrintDataInfo();
+}

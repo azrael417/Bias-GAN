@@ -1,0 +1,6 @@
+setup.py
+cpp/numpy_reader.cpp
+numpy_reader.egg-info/PKG-INFO
+numpy_reader.egg-info/SOURCES.txt
+numpy_reader.egg-info/dependency_links.txt
+numpy_reader.egg-info/top_level.txt
