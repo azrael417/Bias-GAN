@@ -58,10 +58,11 @@ COPY ./src/utils /opt/utils
 #RUN cd /opt/deepCam && git init
 
 #copy cert:
-COPY no-git/ecmwf_cert.key /root/.ecmwfapirc
-COPY no-git/copernicus_cert.key /root/.cdsapirc
-COPY no-git/wandb_cert.key /root/.wandbirc
-COPY no-git/wandb_cert_gpsro.key /root/.wandbirc_gpsro
+RUN mkdir -p /certs
+COPY no-git/ecmwf_cert.key /certs/.ecmwfapirc
+COPY no-git/copernicus_cert.key /certs/.cdsapirc
+COPY no-git/wandb_cert_era.key /certs/.wandbirc
+COPY no-git/wandb_cert_gpsro.key /certs/.wandbirc_gpsro
 
 #create additional folders for mapping data in
 RUN mkdir -p /data && mkdir -p /data && mkdir -p /data/output

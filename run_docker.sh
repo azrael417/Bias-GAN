@@ -21,4 +21,4 @@ nvidia-docker run \
 	      --ipc host \
 	      --env "CUDA_VISIBLE_DEVICES=0" \
 	      --volume "${data_root}:/data:rw" \
-	      --workdir "/opt/deepCam" -it tkurth/pytorch-bias_gan:latest /bin/bash
+	      --workdir "/opt/deepCam" -it registry.services.nersc.gov/tkurth/pytorch-bias_gan:latest /bin/bash
