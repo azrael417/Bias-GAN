@@ -2,7 +2,7 @@
 
 #some parameters
 #data_root=/home/cuda/tkurth/cam5_data
-data_root=/home/${USER}/tkurth/ecmwf_data
+data_root=/raid/tkurth
 #data_root=/raid/data/tkurth/cam5_data
 #data_root=/raid/data/tkurth
 
