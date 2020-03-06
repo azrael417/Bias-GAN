@@ -30,10 +30,10 @@ def merge_token(token1, token2):
 #create data token
 def create_token(filename, data_format="nchw"):
     arr = np.load(filename).astype(np.float64)
-    axis = (0,2,3) if data_format == "nchw" else (0,1,2)
+    axis = (1,2) if data_format == "nchw" else (0,1)
 
     #how many samples do we have
-    n = arr.shape[0]
+    n = 1
     #compute stats
     mean = np.mean(arr, axis=axis)
     meansq = np.mean(np.square(arr), axis=axis)
@@ -49,38 +49,32 @@ def create_token(filename, data_format="nchw"):
 nraid = 4
 overwrite = False
 data_format = "nchw"
-data_path_prefix = "/"
+data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
 
-token = None
-for idx in range(0,nraid):
+#init token
+data_token = None
+label_token = None
 
-    #root path
-    root = os.path.join( data_path_prefix, 'data{}'.format(2 * idx + 1), 'ecmwf_data' )
+#root path
+root = os.path.join( data_path_prefix, 'train' )
+        
+data_files = [ os.path.join(root, x)  for x in os.listdir(root) if x.endswith('.npy') and x.startswith('data_in_') ]
+label_files = [ os.path.join(root, x)  for x in os.listdir(root) if x.endswith('.npy') and x.startswith('data_out_') ]
+
+#get first token and then merge recursively
+#data
+data_token = create_token(data_files[0], data_format)
+for filename in data_files[1:]:
+    data_token = merge_token(create_token(filename, data_format), data_token)
+
+#label
+label_token = create_token(label_files[0], data_format)
+for filename in label_files[1:]:
+    label_token = merge_token(create_token(filename, data_format), label_token)
+
+assert(data_token[0] == label_token[0])
     
-    for gpudir in os.listdir(root):
-
-        if not gpudir.startswith("gpu"):
-            continue
-        
-        files = [ os.path.join(root, gpudir, 'train', x)  for x in os.listdir(os.path.join(root, gpudir, 'train')) \
-                  if x.endswith('.npy') and x.startswith('data-') ]
-
-        #get first token and then merge recursively
-        token = create_token(files[0], data_format)
-        for filename in files[1:]:
-            token = merge_token(create_token(filename, data_format), token)
-
-
-#distribute the file
-for idx in range(0,nraid):
-
-    #root path
-    root = os.path.join( data_path_prefix, 'data{}'.format(2 * idx + 1), 'ecmwf_data' )
-
-    for gpudir in os.listdir(root):
-
-        if not gpudir.startswith("gpu"):
-            continue
-        
-        #save results
-        np.savez(os.path.join(root, gpudir, "train", "stats.npz"), count=token[0], mean=token[1], sqmean=token[2], minval=token[3], maxval=token[4])
+#save token
+np.savez(os.path.join(root, "stats.npz"), count=data_token[0],
+         data_mean=data_token[1], data_sqmean=data_token[2], data_minval=data_token[3], data_maxval=data_token[4],
+         label_mean=label_token[1], label_sqmean=label_token[2], label_minval=label_token[3], label_maxval=label_token[4])
