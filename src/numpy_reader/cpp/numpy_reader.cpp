@@ -263,6 +263,7 @@ void NumpyReader::InitFile(const std::string& filename){
     
     //set up cufile stuff
     _cf_descr.handle.fd = _fd;
+    _cf_descr.fs_ops = nullptr;
     _cf_descr.type = CU_FILE_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
     _cf_status = cuFileImportExternalFile(&_cf_handle, &_cf_descr);
     if( _cf_status.err != CU_FILE_SUCCESS ){
@@ -297,7 +298,12 @@ void NumpyReader::readChunk(int64_t dest_off, int64_t src_off, int64_t size){
     cudaSetDevice(_device.index());
 
     //read
-    nread = cuFileRead(_cf_handle, static_cast<void*>(_ddata + dest_off), size, _offset + src_off);
+    //old call
+    //nread = cuFileRead(_cf_handle, static_cast<void*>(_ddata + dest_off), size, _offset + src_off);
+    //new call with explicit offset
+    //nread = cuFileRead( _cf_handle, static_cast<void*>(_ddata), size, static_cast<off_t>(_offset + src_off), static_cast<off_t>(dest_off) );
+    //new call w/o explicit offset
+    nread = cuFileRead( _cf_handle, static_cast<void*>(_ddata + dest_off), size, static_cast<off_t>(_offset + src_off), 0 );
   }
   if(nread != size){
     try{

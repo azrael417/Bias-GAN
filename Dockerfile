@@ -1,7 +1,7 @@
 #FROM gitlab-master.nvidia.com:5005/dl/dgx/pytorch:19.10-py3-devel
 FROM nvcr.io/nvidia/pytorch:20.01-py3
 
-ARG gds_version=20200121
+ARG gds_version=20200220
 
 #Install gds system prereqs
 RUN apt-get update && apt-get install --assume-yes apt-utils \
