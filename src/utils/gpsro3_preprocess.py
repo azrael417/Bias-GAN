@@ -2,6 +2,7 @@ import os
 import re
 import numpy as np
 from scipy.sparse import coo_matrix
+from tqdm import tqdm
 
 file_root = "/data1/gpsro_data3/raw"
 output_dir = "/data1/gpsro_data3/all"
@@ -13,7 +14,7 @@ if not os.path.isdir(output_dir):
     os.makedirs(output_dir)
 
 # iterate over tags
-for tag in tags:
+for tag in tqdm(tags):
     # load lon
     lon = np.load(os.path.join(file_root,"lon_"+tag+".data"), allow_pickle=True, encoding='latin1')
     lon = [ ((x + 180) / 10).astype(np.int) for x in lon]
