@@ -28,17 +28,17 @@ def merge_token(token1, token2):
 
 
 #create data token
-def create_token(filename, data_format="nchw"):
+def create_token(filename, weights=None, data_format="nchw"):
     arr = np.load(filename).astype(np.float64)
     axis = (1,2) if data_format == "nchw" else (0,1)
 
     #how many samples do we have
     n = 1
     #compute stats
-    mean = np.mean(arr, axis=axis)
-    meansq = np.mean(np.square(arr), axis=axis)
-    minimum = np.amin(arr, axis=axis)
-    maximum = np.amax(arr, axis=axis)
+    mean = np.average(arr, weights=weights, axis=axis)
+    meansq = np.average(np.square(arr), weights=weights, axis=axis)
+    minimum = np.amin(arr, where=(weights==1.), initial=10000., axis=axis)
+    maximum = np.amax(arr, where=(weights==1.), initial=-10000., axis=axis)
 
     #result
     result = (n, mean, meansq, minimum, maximum)
@@ -48,33 +48,38 @@ def create_token(filename, data_format="nchw"):
 #global parameters
 nraid = 4
 overwrite = False
+use_weights = True
 data_format = "nchw"
-data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
+data_path_prefix = "/data1/gpsro_data3"
 
 #init token
 data_token = None
 label_token = None
 
 #root path
-root = os.path.join( data_path_prefix, 'train' )
-        
-data_files = [ os.path.join(root, x)  for x in os.listdir(root) if x.endswith('.npy') and x.startswith('data_in_') ]
-label_files = [ os.path.join(root, x)  for x in os.listdir(root) if x.endswith('.npy') and x.startswith('data_out_') ]
+root = os.path.join( data_path_prefix, 'all' )
+
+data_files = sorted([ os.path.join(root, x)  for x in os.listdir(root) if x.endswith('.npy') and x.startswith('data_in_') ])
+label_files = sorted([ os.path.join(root, x)  for x in os.listdir(root) if x.endswith('.npy') and x.startswith('data_out_') ])
+if use_weights:
+    mask_files = sorted([ os.path.join(root, x)  for x in os.listdir(root) if x.endswith('.npy') and x.startswith('masks_') ])
 
 #get first token and then merge recursively
-#data
-data_token = create_token(data_files[0], data_format)
-for filename in data_files[1:]:
-    data_token = merge_token(create_token(filename, data_format), data_token)
-
-#label
-label_token = create_token(label_files[0], data_format)
-for filename in label_files[1:]:
-    label_token = merge_token(create_token(filename, data_format), label_token)
+if use_weights:
+    weights = np.load(mask_files[0])
+else:
+    weights = None
+data_token = create_token(data_files[0], weights, data_format)
+label_token = create_token(label_files[0], weights, data_format)
+for idx in range(1,len(data_files)):
+    if use_weights:
+        weights = np.load(mask_files[idx])
+    data_token = merge_token(create_token(data_files[idx], weights, data_format), data_token)
+    label_token = merge_token(create_token(label_files[idx], weights, data_format), label_token)
 
 assert(data_token[0] == label_token[0])
     
 #save token
-np.savez(os.path.join(root, "stats.npz"), count=data_token[0],
+np.savez(os.path.join(data_path_prefix, "stats.npz"), count=data_token[0],
          data_mean=data_token[1], data_sqmean=data_token[2], data_minval=data_token[3], data_maxval=data_token[4],
          label_mean=label_token[1], label_sqmean=label_token[2], label_minval=label_token[3], label_maxval=label_token[4])
