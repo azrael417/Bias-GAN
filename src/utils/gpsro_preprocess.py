@@ -5,7 +5,7 @@ import numpy as np
 #global parameters
 data_format = "nchw"
 #data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
-data_path_prefix = "/data1/gpsro_data"
+data_path_prefix = "/data1/gpsro_data3_interp"
 numfiles = 4
 
 files = [ x.replace("data_in_", "") for x in os.listdir(os.path.join(data_path_prefix, "raw")) if x.endswith(".npy") and x.startswith("data_in_") ]
