@@ -25,30 +25,26 @@ outputpath = os.path.join(data_path_prefix)
 files = sorted([ os.path.join(outputpath, 'all', x) for x in os.listdir(os.path.join(outputpath, 'all')) if x.endswith(".npy") and x.startswith("data_in_") ])
 files = [(os.path.dirname(x), os.path.basename(x).replace("data_in_","")) for x in files]
 
-print(files)
-
 #bin the data into bin_length
 num_bins = len(files) // bin_length
 files = files[:(num_bins * bin_length)]
-files = np.array(files).reshape((num_bins, bin_length))
-
-print(files)
-sys.exit(1)
+files = np.array(files).reshape((num_bins, bin_length, 2))
 
 #shuffle files
-rng.shuffle(files)
+permutation = rng.permutation(num_bins)
+files = files[permutation, :, :]
 
 #take the train fraction
-n_train = int(np.ceil(len(files)*train_fraction))
-n_validation = int(np.ceil(len(files)*validation_fraction))
-n_test = len(files) - n_validation - n_train
+n_train = int(np.ceil(num_bins * train_fraction))
+n_validation = int(np.ceil(num_bins * validation_fraction))
+n_test = num_bins - n_validation - n_train
 if n_test < 0:
     raise ValueError("Warning, you have more validations and training files than actual files in directory {}, adjust your splits.".format(os.path.join(outputpath, 'all')))
 
 #do the splitting
-train_files = files[:n_train]
-validation_files = files[n_train:n_train+n_validation]
-test_files = files[n_train+n_validation:]
+train_files = files[:n_train, :, :].reshape( (n_train * bin_length, 2) ).tolist()
+validation_files = files[n_train:n_train+n_validation, :, :].reshape( (n_validation * bin_length, 2) ).tolist()
+test_files = files[n_train+n_validation:, :, :].reshape( (n_test * bin_length, 2) ).tolist()
 
 #training files
 #prepare directory
