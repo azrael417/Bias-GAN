@@ -25,9 +25,11 @@ outputpath = os.path.join(data_path_prefix)
 files = sorted([ os.path.join(outputpath, 'all', x) for x in os.listdir(os.path.join(outputpath, 'all')) if x.endswith(".npy") and x.startswith("data_in_") ])
 files = [(os.path.dirname(x), os.path.basename(x).replace("data_in_","")) for x in files]
 
+print(files)
+
 #bin the data into bin_length
 num_bins = len(files) // bin_length
-files = files[:num_bins * bin_length]
+files = files[:(num_bins * bin_length)]
 files = np.array(files).reshape((num_bins, bin_length))
 
 print(files)
