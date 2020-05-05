@@ -12,7 +12,7 @@ test_fraction = 0.1
 bin_length = 10
 seed = 13476251
 #data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
-data_path_prefix = "/data1/gpsro_data"
+data_path_prefix = "/data1/gpsro_data3_interp"
 #data_path_prefix = "/data/gpsro_data"
 
 #init rng
@@ -68,6 +68,12 @@ for f in train_files:
     outfile = os.path.join(outputpath,"train","data_out_"+f[1])
     os.symlink(infile, outfile)
 
+    #mask
+    infile = os.path.join(f[0],"masks_"+f[1])
+    if os.path.exists(infile):
+        outfile = os.path.join(outputpath,"train","masks_"+f[1])
+        os.symlink(infile, outfile)
+    
 #validation files
 #prepare directory
 if os.path.isdir(os.path.join(outputpath,"validation")):
@@ -88,6 +94,12 @@ for f in validation_files:
     outfile = os.path.join(outputpath,"validation","data_out_"+f[1])
     os.symlink(infile, outfile)
 
+    #mask
+    infile = os.path.join(f[0],"masks_"+f[1])
+    if os.path.exists(infile):
+        outfile = os.path.join(outputpath,"validation","masks_"+f[1])
+        os.symlink(infile, outfile)
+
 #test files
 #prepare directory
 if os.path.isdir(os.path.join(outputpath,"test")):
@@ -107,3 +119,9 @@ for f in test_files:
     infile = os.path.join(f[0],"data_out_"+f[1])
     outfile = os.path.join(outputpath,"test","data_out_"+f[1])
     os.symlink(infile, outfile)
+
+    #mask
+    infile = os.path.join(f[0],"masks_"+f[1])
+    if os.path.exists(infile):
+        outfile = os.path.join(outputpath,"test","masks_"+f[1])
+        os.symlink(infile, outfile)

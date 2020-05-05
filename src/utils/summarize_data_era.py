@@ -28,15 +28,15 @@ def merge_token(token1, token2):
 
 
 #create data token
-def create_token(filename, data_format="nchw"):
+def create_token(filename, weights=None, data_format="nchw"):
     arr = np.load(filename).astype(np.float64)
     axis = (0,2,3) if data_format == "nchw" else (0,1,2)
 
     #how many samples do we have
     n = arr.shape[0]
     #compute stats
-    mean = np.mean(arr, axis=axis)
-    meansq = np.mean(np.square(arr), axis=axis)
+    mean = np.average(arr, axis=axis)
+    meansq = np.average(np.square(arr), axis=axis)
     minimum = np.amin(arr, axis=axis)
     maximum = np.amax(arr, axis=axis)
 
