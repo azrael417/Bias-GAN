@@ -9,6 +9,7 @@ from tqdm import tqdm
 train_fraction = 0.8
 validation_fraction = 0.1
 test_fraction = 0.1
+bin_length = 10
 seed = 13476251
 #data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
 data_path_prefix = "/data1/gpsro_data"
@@ -23,6 +24,14 @@ outputpath = os.path.join(data_path_prefix)
 #sort files to have definite state
 files = sorted([ os.path.join(outputpath, 'all', x) for x in os.listdir(os.path.join(outputpath, 'all')) if x.endswith(".npy") and x.startswith("data_in_") ])
 files = [(os.path.dirname(x), os.path.basename(x).replace("data_in_","")) for x in files]
+
+#bin the data into bin_length
+num_bins = len(files) // bin_length
+files = files[:num_bins * bin_length]
+files = np.array(files).reshape((num_bins, bin_length))
+
+print(files)
+sys.exit(1)
 
 #shuffle files
 rng.shuffle(files)
