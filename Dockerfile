@@ -39,12 +39,17 @@ RUN HOROVOD_GPU_ALLREDUCE=NCCL pip install --no-cache-dir horovod
 RUN pip install mpi4py
 
 #install other python stuff necessary
-RUN pip install netcdf4 ecmwf-api-client cdsapi wandb
+RUN pip install netcdf4 ecmwf-api-client cdsapi wandb ruamel.yaml
 
 #install numpy with pytorch extensions
 RUN mkdir -p /opt
+#numpy
 COPY ./src/numpy_reader /opt/numpy_reader
 RUN cd /opt/numpy_reader && python setup.py install
+
+#local condv 2d
+COPY ./src/conv2d_local /opt/conv2d_local
+RUN cd /opt/conv2d_local && python setup.py install
 
 ##install Torch2TRT
 #RUN cd /opt; git clone https://github.com/NVIDIA-AI-IOT/torch2trt \
