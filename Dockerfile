@@ -3,6 +3,24 @@ FROM nvcr.io/nvidia/pytorch:20.01-py3
 
 ARG gds_version=20200220
 
+## Install OpenMPI w/ IBVerbs support.  Builds *without* CUDA-aware MPI features on purpose as
+## DLFW don't use those features and it adds overhead for checking every pointer's location in MPI
+#ARG OPENMPI_VERSION=4.0.3
+#ENV OPENMPI_VERSION=${OPENMPI_VERSION}
+#RUN wget -q -O - https://www.open-mpi.org/software/ompi/v$(echo "${OPENMPI_VERSION}" | cut -d . -f 1-2)/downloads/openmpi-${OPENMPI_VERSION}.tar.gz | tar -xzf - \
+#    && cd openmpi-${OPENMPI_VERSION} \
+#    && ln -sf /usr/include/slurm-wlm /usr/include/slurm \
+#    && ./configure --enable-orterun-prefix-by-default --with-verbs \
+#                   --with-pmi --with-pmix=internal \
+#		   --with-cuda=/usr/local/cuda \
+#		   --prefix=/usr/local/mpi --disable-getpwuid \
+#    && make -j"$(nproc)" install \
+#    && cd .. && rm -rf openmpi-${OPENMPI_VERSION} \
+#    && echo "/usr/local/mpi/lib" >> /etc/ld.so.conf.d/openmpi.conf \
+#    && rm -f /usr/lib/libibverbs.so /usr/lib/libibverbs.a \
+#    && ldconfig
+#ENV PATH /usr/local/mpi/bin:$PATH
+
 #Install gds system prereqs
 RUN apt-get update && apt-get install --assume-yes apt-utils \
     && apt-get install --assume-yes libudev-dev \
