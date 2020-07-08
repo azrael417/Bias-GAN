@@ -5,8 +5,8 @@ from scipy.interpolate import SmoothBivariateSpline as interp
 from scipy.sparse import coo_matrix
 from tqdm import tqdm
 
-file_root = "/data/gpsro_data3/raw"
-output_dir = "/data/gpsro_data3/all"
+file_root = "/data/gpsro_data3/test_2020/raw"
+output_dir = "/data/gpsro_data3/test_2020/all"
 pattern = re.compile("data_in_raw_(.*?).data")
 tags = {pattern.match(x).groups()[0] for x in os.listdir(file_root) if pattern.match(x) is not None}
 
