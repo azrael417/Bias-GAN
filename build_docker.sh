@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #nvidia-docker build -t tkurth/pytorch-bias_gan:latest .
-nvidia-docker build -t registry.services.nersc.gov/tkurth/pytorch-bias_gan:latest .
+docker build -t registry.services.nersc.gov/tkurth/pytorch-bias_gan:latest .
 #docker push registry.services.nersc.gov/tkurth/pytorch-bias_gan:latest
 
 #run docker test
