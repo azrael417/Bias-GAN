@@ -65,20 +65,9 @@ RUN mkdir -p /opt
 COPY ./src/numpy_reader /opt/numpy_reader
 RUN cd /opt/numpy_reader && python setup.py install
 
-#local condv 2d
-COPY ./src/conv2d_local /opt/conv2d_local
-RUN cd /opt/conv2d_local && python setup.py install
-
-##install Torch2TRT
-#RUN cd /opt; git clone https://github.com/NVIDIA-AI-IOT/torch2trt \
-#    && cd torch2trt && python setup.py install
-
 #copy additional stuff
 COPY ./src/deepCam /opt/deepCam
 COPY ./src/utils /opt/utils
-
-#init empty git repo so that wandb works
-#RUN cd /opt/deepCam && git init
 
 #copy cert:
 RUN mkdir -p /certs
