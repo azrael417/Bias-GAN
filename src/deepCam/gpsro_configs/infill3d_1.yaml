@@ -12,12 +12,12 @@ default: &DEFAULT
   loss_weights: {"valid": 1.0, "hole": 0.5, "tv": 0.}
 
   optimizer: "AdamW"
-  weight_decay: 0.005
+  weight_decay: 0.01
   start_lr: 0.0001
   max_steps: 30000
-  local_batch_size: 8
+  local_batch_size: 16
   adam_eps: 1E-8
-  lr_schedule: {"type": "multistep", "milestones": [15000], "decay_rate": 0.1}
+  lr_schedule: {"type": "multistep", "milestones": [10000], "decay_rate": 0.1}
 
   validation_frequency: 100
   training_visualization_frequency: 200
