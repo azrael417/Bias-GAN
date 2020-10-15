@@ -37,8 +37,12 @@ def create_token(filename, weights=None, data_format="nchw"):
     #compute stats
     mean = np.average(arr, weights=weights, axis=axis)
     meansq = np.average(np.square(arr), weights=weights, axis=axis)
-    minimum = np.amin(arr, where=(weights==1.), initial=10000., axis=axis)
-    maximum = np.amax(arr, where=(weights==1.), initial=-10000., axis=axis)
+    if weights is not None:
+        minimum = np.amin(arr, where=(weights==1.), initial=10000., axis=axis)
+        maximum = np.amax(arr, where=(weights==1.), initial=-10000., axis=axis)
+    else:
+        minimum = np.amin(arr, axis=axis)
+        maximum = np.amax(arr, axis=axis)
 
     #result
     result = (n, mean, meansq, minimum, maximum)
@@ -48,9 +52,9 @@ def create_token(filename, weights=None, data_format="nchw"):
 #global parameters
 nraid = 4
 overwrite = False
-use_weights = True
+use_weights = False
 data_format = "nchw"
-data_path_prefix = "/data/gpsro_data3_interp"
+data_path_prefix = "/data/gpsro_data4_interp/train"
 
 #init token
 data_token = None
