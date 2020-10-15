@@ -47,20 +47,24 @@ def total_variation_loss(image):
 
 
 class InpaintingLoss(nn.Module):
-    def __init__(self, extractor=None):
+    def __init__(self, loss_type = "smooth-l1", extractor = None):
         super().__init__()
-        self.l1 = nn.L1Loss()
-        #self.l1w = L1LossWeighted()
+        if loss_type == "l1":
+            self.dist = nn.L1Loss()
+        elif loss_type == "smooth-l1":
+            self.dist = nn.SmoothL1Loss()
+        elif loss_type == "l2":
+            self.dist = nn.MSELoss()
+        else:
+            raise NotImplementedError(f"Error: loss_type {loss_type} not implemented.")
         self.extractor = extractor
         
     def forward(self, input, output, gt, mask):
         loss_dict = {}
 
         # these two are simple
-        loss_dict['hole'] = self.l1( (1. - mask) * output, (1. - mask) * gt )
-        loss_dict['valid'] = self.l1( mask * output, mask * gt )
-        #loss_dict['hole'] = self.l1w(output, gt, 1.-mask)
-        #loss_dict['valid'] = self.l1w(output, gt, mask)
+        loss_dict['hole'] = self.dist( (1. - mask) * output, (1. - mask) * gt )
+        loss_dict['valid'] = self.dist( mask * output, mask * gt )
 
         # we need that for variational loss
         output_comp = mask * input + (1 - mask) * output
@@ -79,15 +83,15 @@ class InpaintingLoss(nn.Module):
             
             loss_dict['prc'] = 0.0
             for i in range(3):
-                loss_dict['prc'] += self.l1(feat_output[i], feat_gt[i])
-                loss_dict['prc'] += self.l1(feat_output_comp[i], feat_gt[i])
+                loss_dict['prc'] += self.dist(feat_output[i], feat_gt[i])
+                loss_dict['prc'] += self.dist(feat_output_comp[i], feat_gt[i])
             
             loss_dict['style'] = 0.0
             for i in range(3):
-                loss_dict['style'] += self.l1(gram_matrix(feat_output[i]),
-                                              gram_matrix(feat_gt[i]))
-                loss_dict['style'] += self.l1(gram_matrix(feat_output_comp[i]),
-                                              gram_matrix(feat_gt[i]))
+                loss_dict['style'] += self.dist(gram_matrix(feat_output[i]),
+                                                gram_matrix(feat_gt[i]))
+                loss_dict['style'] += self.dist(gram_matrix(feat_output_comp[i]),
+                                                gram_matrix(feat_gt[i]))
 
         loss_dict['tv'] = total_variation_loss(output_comp)
         
