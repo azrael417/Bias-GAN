@@ -36,10 +36,6 @@ RUN mkdir -p /opt
 COPY ./src/numpy_reader /opt/numpy_reader
 RUN cd /opt/numpy_reader && python setup.py install
 
-#local condv 2d
-#COPY ./src/conv2d_local /opt/conv2d_local
-#RUN cd /opt/conv2d_local && python setup.py install
-
 #copy additional stuff
 COPY ./src/deepCam /opt/deepCam
 COPY ./src/utils /opt/utils
