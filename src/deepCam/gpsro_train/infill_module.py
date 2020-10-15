@@ -52,8 +52,9 @@ class Infill(object):
         torch.manual_seed(seed)
         if torch.cuda.is_available():
             self.comm.printr("Using GPUs",0)
-            self.device = torch.device("cuda", comm.local_rank())
+            self.device = torch.device("cuda", self.comm.local_rank())
             torch.cuda.manual_seed(seed)
+            torch.cuda.set_device(self.device.index)
         else:
             self.comm.printr("Using CPUs",0)
             self.device = torch.device("cpu")
@@ -90,10 +91,6 @@ class Infill(object):
             if not os.path.isdir(self.output_dir):
                 os.makedirs(self.output_dir)
 
-        # we need to convert the loss weights to float
-        for key in config.loss_weights:
-            self.config.loss_weights[key] = float(self.config.loss_weights[key])
-
         # Determine normalizer
         normalizer = None
         if self.config["layer_normalization"] == "batch_norm":
@@ -108,11 +105,18 @@ class Infill(object):
         n_output_channels = len(config["channels"])
         self.net = dxi.PConvUNet(input_channels = n_input_channels, output_channels = n_output_channels, layer_size = 6)
         #self.net = dxi.PartialEncoderDecoderDirectPadSmall(n_input_channels, n_output_channels, factor=1, use_oracle_design=False)
-        self.net.to(device)
+        self.net.to(self.device)
 
         #select loss
-        self.criterion = losses.InpaintingLoss().to(device)
+        self.criterion = losses.InpaintingLoss().to(self.device)
 
+        self.loss_weights = None
+        if "loss_weights.valid" in self.config.keys():
+            self.loss_weights = {x.split(".")[1]: float(self.config[x]) for x in self.config.keys() if x.startswith("loss_weights")}
+        elif "loss_weights" in self.config.keys():
+            self.loss_weights = self.config["loss_weights"]
+            self.loss_weights = {x: float(self.loss_weights[x]) for x in self.loss_weights.keys()}
+        
         #noise vector
         self.dist = None
         if self.config["noise_dimensions"] > 0:
@@ -212,14 +216,14 @@ class Infill(object):
             loss_list = []
             
             #for inputs_raw, labels, source in train_loader:
-            for inputs_raw, label, masks, filename in train_loader:
+            for inputs_raw, label, masks, filename in self.train_loader:
 
                 if self.dist is not None:
                     # generate noise vector and concat with inputs
                     inputs_noise = self.dist.rsample( (inputs_raw.shape[0], \
                                                         self.config["noise_dimensions"], \
                                                         inputs_raw.shape[1], \
-                                                        inputs_raw.shape[2] ).to(self.device)
+                                                        inputs_raw.shape[2]) ).to(self.device)
                     inputs = torch.cat((inputs_raw, inputs_noise), dim = 1)
                 else:
                     inputs = inputs_raw
@@ -332,15 +336,14 @@ class Infill(object):
         with torch.no_grad():
 
             # iterate over validation sample
-            step_val = 0
-            for step_val, (inputs_raw_val, label_val, masks_val, filename) in enumerate(validation_loader):
+            for step_val, (inputs_raw_val, label_val, masks_val, filename) in enumerate(self.validation_loader):
 
                 # generate noise vector and concat with inputs
                 if self.dist is not None:
                     inputs_noise_val = self.dist.rsample( (inputs_raw_val.shape[0], \
                                                         self.config["noise_dimensions"], \
                                                         inputs_raw_val.shape[1], \
-                                                        inputs_raw_val.shape[2], ).to(self.device)
+                                                        inputs_raw_val.shape[2]) ).to(self.device)
                     inputs_val = torch.cat((inputs_raw_val, inputs_noise_val), dim = 1)
                 else:
                     inputs_val = inputs_raw_val

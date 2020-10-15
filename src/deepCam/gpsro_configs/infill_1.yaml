@@ -26,5 +26,5 @@ default: &DEFAULT
 
   enable_gds: False
   max_intra_threads: 1
-  amp_opt_level: "O1"
+  enable_amp: True
   
