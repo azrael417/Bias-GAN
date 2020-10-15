@@ -1,0 +1,68 @@
+program: ../gpsro_train/hpo_regression3d.py
+method: random
+metric:
+  name: "Validation Loss"
+  goal: minimize
+parameters:
+  adam_eps:
+    distribution: log_uniform
+    min: -8
+    max: -5
+  root_dir:
+    distribution: constant
+    value: "/data/gpsro_data3_interp"
+  start_lr:
+    distribution: log_uniform
+    min: -8
+    max: -4
+  loss_type:
+    distribution: constant
+    value: "smooth_l1"
+  max_steps:
+    distribution: constant
+    value: 20000
+  optimizer:
+    distribution: constant
+    value: "AdamW"
+  noise_type:
+    distribution: constant
+    value: "Uniform"
+  noise_dimensions:
+    distribution: constant
+    value: 0
+  output_dir:
+    distribution: constant
+    value: "/data/gpsro_data3_interp/runs/regression3d_uniform_hpo"
+  enable_masks:
+    distribution: constant
+    value: true
+  weight_decay:
+    distribution: log_uniform
+    min: -4
+    max: -2
+  upsampler_type:
+    distribution: constant
+    value: "Deconv1x"
+  local_batch_size:
+    distribution: int_uniform
+    min: 2
+    max: 8
+  lr_schedule.type:
+    distribution: constant
+    value: "multistep"
+  lr_schedule.decay_rate:
+    distribution: uniform
+    min: 0.05
+    max: 0.1
+  lr_schedule.milestones:
+    distribution: categorical
+    values:
+      - [20000]
+      - [10000]
+      - [10000, 15000]
+      - [5000, 10000]
+  layer_normalization:
+    distribution: categorical
+    values:
+      - "batch_norm"
+      - "instance_norm"
