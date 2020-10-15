@@ -1,5 +1,5 @@
 #FROM gitlab-master.nvidia.com:5005/dl/dgx/pytorch:19.10-py3-devel
-FROM nvcr.io/nvidia/pytorch:20.07-py3
+FROM nvcr.io/nvidia/pytorch:20.09-py3
 
 ARG gds_version=20200220
 
@@ -25,7 +25,9 @@ COPY ./sys/gds-alpha-${gds_version}/tools/samples /opt/gds_examples
 RUN pip install mpi4py
 
 #install other python stuff necessary
-RUN pip install --upgrade netcdf4 ecmwf-api-client cdsapi wandb ruamel.yaml
+RUN pip install --upgrade wandb && \
+    pip install netcdf4 ecmwf-api-client cdsapi
+RUN conda install -y -c conda-forge ruamel.yaml
 
 # raytune:
 RUN pip install -U ray && pip install ray[tune]
