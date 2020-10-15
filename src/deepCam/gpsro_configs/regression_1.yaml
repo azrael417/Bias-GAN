@@ -1,0 +1,33 @@
+default: &DEFAULT
+
+  root_dir: "/data/gpsro_data3_interp"
+  output_dir: "/data/gpsro_data3_interp/runs/{run_tag}"
+  model_prefix: "regressor"
+  checkpoint: ""
+
+  noise_dimensions: 0
+  noise_type: "Normal"
+  enable_masks: True
+  upsampler_type: "Deconv1x"
+  layer_normalization: "batch_norm"
+  loss_type: "smooth_l1"
+  loss_weights: {"valid": 1., "hole": 0.8}
+
+  optimizer: "AdamW"
+  weight_decay: 1E-3
+  start_lr: 1E-4
+  max_steps: 22000
+  local_batch_size: 8
+  adam_eps: 1E-8
+  lr_schedule: {"type": "multistep", "milestones": [10000], "decay_rate": 0.1}
+
+  validation_frequency: 100
+  training_visualization_frequency: 200
+  validation_visualization_frequency: 50
+  logging_frequency: 50
+  save_frequency: 200
+
+  enable_gds: False
+  max_intra_threads: 1
+  amp_opt_level: "O1"
+  
