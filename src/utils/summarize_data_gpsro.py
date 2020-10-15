@@ -51,7 +51,7 @@ def create_token(filename, weights=None, data_format="nchw"):
 
 #global parameters
 nraid = 4
-overwrite = False
+overwrite = True
 use_weights = False
 data_format = "nchw"
 data_path_prefix = "/data/gpsro_data4_interp/train"
