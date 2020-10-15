@@ -23,7 +23,7 @@ from utils import losses
 from utils import yparams as yp
 from utils import parsing_helpers as ph
 from data import gpsro_dataset as gpsro
-from architecture.gpsro import infill as dxi
+from architecture.gpsro import infill3d as dxi
 from utils import gpsro_visualizer as gp
 from utils import gpsro_postprocessor as pp
 
@@ -39,7 +39,7 @@ import apex.optimizers as aoptim
 from comm.distributed import comm as distcomm
 
 
-class Infill(object):
+class Infill3d(object):
     
     def __init__(self, config):
         # init communicator
@@ -94,17 +94,17 @@ class Infill(object):
         # Determine normalizer
         normalizer = None
         if self.config["layer_normalization"] == "batch_norm":
-            normalizer = torch.nn.BatchNorm2d
+            normalizer = torch.nn.BatchNorm3d
         elif self.config["layer_normalization"] == "instance_norm":
-            normalizer = torch.nn.InstanceNorm2d
+            normalizer = torch.nn.InstanceNorm3d
         else:
             raise NotImplementedError("Error, " + self.config["layer_normalization"] + " not supported")
 
         # Define architecture
-        n_input_channels = len(config["channels"]) + self.config["noise_dimensions"]
-        n_output_channels = len(config["channels"])
-        self.net = dxi.PConvUNet(input_channels = n_input_channels, output_channels = n_output_channels, 
-                                 layer_size = 6, normalizer = normalizer)
+        n_input_channels = 1 + self.config["noise_dimensions"]
+        n_output_channels = 1
+        self.net = dxi.PConvUNet3d(input_channels = n_input_channels, output_channels = n_output_channels, 
+                                   normalizer = normalizer, layer_size = 6)
         #self.net = dxi.PartialEncoderDecoderDirectPadSmall(n_input_channels, n_output_channels, factor=1, use_oracle_design=False)
         self.net.to(self.device)
 
@@ -161,7 +161,7 @@ class Infill(object):
         # train
         train_dir = os.path.join(root_dir, "train")
         train_set = gpsro.GPSRODataset(train_dir,
-                                       statsfile = os.path.join(root_dir, 'stats.npz'),
+                                       statsfile = os.path.join(root_dir, 'stats3d.npz'),
                                        channels = self.config["channels"],
                                        normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance",
                                        shuffle = True,
@@ -175,7 +175,7 @@ class Infill(object):
         # validation
         validation_dir = os.path.join(root_dir, "validation")
         validation_set = gpsro.GPSRODataset(validation_dir,
-                                            statsfile = os.path.join(root_dir, 'stats.npz'),
+                                            statsfile = os.path.join(root_dir, 'stats3d.npz'),
                                             channels = self.config["channels"],
                                             normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance",
                                             shuffle = True,
@@ -187,13 +187,13 @@ class Infill(object):
         self.validation_loader = DataLoader(validation_set, self.config["local_batch_size"], drop_last=True)
                                    
         # visualizer
-        self.gpviz = gp.GPSROVisualizer(statsfile = os.path.join(root_dir, 'stats.npz'),
+        self.gpviz = gp.GPSROVisualizer(statsfile = os.path.join(root_dir, 'stats3d.npz'),
                                        channels = self.config["channels"],
                                        normalize = True,
                                        normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance")
 
         # postprocessing
-        self.pproc = pp.GPSROPostprocessor(statsfile = os.path.join(root_dir, 'stats.npz'),
+        self.pproc = pp.GPSROPostprocessor(statsfile = os.path.join(root_dir, 'stats3d.npz'),
                                           channels = self.config["channels"],
                                           normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance")
                                           
@@ -218,13 +218,19 @@ class Infill(object):
             
             #for inputs_raw, labels, source in train_loader:
             for inputs_raw, label, masks, filename in self.train_loader:
-
+                
+                #unsqueeze
+                inputs_raw = torch.unsqueeze(inputs_raw, dim=1)
+                label = torch.unsqueeze(label, dim=1)
+                masks = torch.unsqueeze(masks, dim=1)
+                
                 if self.dist is not None:
                     # generate noise vector and concat with inputs
                     inputs_noise = self.dist.rsample( (inputs_raw.shape[0], \
                                                         self.config["noise_dimensions"], \
                                                         inputs_raw.shape[1], \
-                                                        inputs_raw.shape[2]) ).to(self.device)
+                                                        inputs_raw.shape[2], \
+                                                        inputs_raw.shape[3]) ).to(self.device)
                     inputs = torch.cat((inputs_raw, inputs_noise), dim = 1)
                 else:
                     inputs = inputs_raw
@@ -264,8 +270,8 @@ class Infill(object):
                 if (step % self.config["training_visualization_frequency"] == 0) and (self.comm.rank() == 0):
                     sample_idx = np.random.randint(low=0, high=label.shape[0])
                     plotname = os.path.join(self.output_dir, "plot_train_step{}_sampleid{}.png".format(step, sample_idx))
-                    prediction = outputs.detach()[sample_idx, ...].cpu().numpy().astype(np.float32)
-                    groundtruth = label.detach()[sample_idx, ...].cpu().numpy().astype(np.float32)
+                    prediction = outputs.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
+                    groundtruth = label.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
                     self.gpviz.visualize_prediction(plotname, prediction, groundtruth)
                 
                     #log if requested
@@ -338,13 +344,19 @@ class Infill(object):
 
             # iterate over validation sample
             for step_val, (inputs_raw_val, label_val, masks_val, filename) in enumerate(self.validation_loader):
-
+                
+                #unsqueeze
+                inputs_raw_val = torch.unsqueeze(inputs_raw_val, dim=1)
+                label_val = torch.unsqueeze(label_val, dim=1)
+                masks_val = torch.unsqueeze(masks_val, dim=1)
+                
                 # generate noise vector and concat with inputs
                 if self.dist is not None:
                     inputs_noise_val = self.dist.rsample( (inputs_raw_val.shape[0], \
                                                         self.config["noise_dimensions"], \
                                                         inputs_raw_val.shape[1], \
-                                                        inputs_raw_val.shape[2]) ).to(self.device)
+                                                        inputs_raw_val.shape[2], \
+                                                        inputs_raw_val.shape[3]) ).to(self.device)
                     inputs_val = torch.cat((inputs_raw_val, inputs_noise_val), dim = 1)
                 else:
                     inputs_val = inputs_raw_val
@@ -372,8 +384,8 @@ class Infill(object):
                 if (step_val % self.config["validation_visualization_frequency"] == 0) and (self.comm.rank() == 0):
                     sample_idx = np.random.randint(low=0, high=label_val.shape[0])
                     plotname = os.path.join(self.output_dir, "plot_validation_step{}_valstep{}_sampleid{}.png".format(step,step_val,sample_idx))
-                    prediction_val = outputs_val.detach()[sample_idx, ...].cpu().numpy().astype(np.float32)
-                    groundtruth_val = label_val.detach()[sample_idx, ...].cpu().numpy().astype(np.float32)
+                    prediction_val = outputs_val.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
+                    groundtruth_val = label_val.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
                     self.gpviz.visualize_prediction(plotname, prediction_val, groundtruth_val)
                 
                     #log if requested
