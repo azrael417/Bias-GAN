@@ -1,0 +1,43 @@
+default: &DEFAULT
+  # paths
+  root_dir: '/data/gpsro_data3_interp'
+  output_dir: '/data/gpsro_data3_interp/runs/regression3d_normal_sage-sweep-4'
+  model_prefix: 'regressor'
+  run_tag: 'regression3d_normal_sage-sweep-4'
+  
+  # arch
+  upsampler_type: 'Deconv1x'
+  loss_type: 'l2'
+  noise_type: 'Normal'
+  enable_masks: True
+  loss_weights.valid: 1.0
+  loss_weights.hole: 0.8
+  noise_dimensions: 0
+  layer_normalization: 'instance_norm'
+  
+  # optimizer
+  optimizer : 'AdamW'
+  start_lr: 0.0037425048006256177
+  adam_eps: 0.0008632486033201585
+  lr_schedule.type: 'multistep'
+  lr_schedule.decay_rate: 0.03359994729111563
+  lr_schedule.milestones:
+    - 10000
+
+  # training details
+  local_batch_size: 7
+  max_steps: 12000
+  weight_decay: 0.11989182417966492
+
+  #frequencies
+  logging_frequency: 50
+  save_frequency: 200
+  training_visualization_frequency: 200
+  validation_frequency: 100
+  validation_visualization_frequency: 50
+  
+  #misc
+  num_workers: 1
+  max_intra_threads: 1
+  enable_amp: True
+  enable_gds: False
