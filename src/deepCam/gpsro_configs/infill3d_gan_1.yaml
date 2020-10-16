@@ -1,0 +1,42 @@
+default: &DEFAULT
+
+  root_dir: "/data/gpsro_data4_interp"
+  output_dir: "/data/gpsro_data4_interp/runs/{run_tag}"
+  model_prefix: "infill3d_gan"
+  checkpoint: ""
+
+  noise_dimensions: 1
+  noise_type: "Normal"
+  gen_layer_normalization: "batch_norm"
+  disc_layer_normalization: "batch_norm"
+
+  loss_type: "l2"
+  loss_weights: {"valid": 1.0, "hole": 0.5, "tv": 0., "adv": 1.}
+
+  gen_optimizer: "AdamW"
+  gen_weight_decay: 0.01
+  gen_start_lr: 0.0001
+  gen_adam_eps: 1E-8
+  gen_lr_schedule: {"type": "multistep", "milestones": [20000], "decay_rate": 0.1}
+
+  disc_optimizer: "AdamW"
+  disc_weight_decay: 0.01
+  disc_start_lr: 0.0001
+  disc_adam_eps: 1E-8
+  disc_lr_schedule: {"type": "multistep", "milestones": [20000], "decay_rate": 0.1}
+
+  disc_acc_min 0.2
+  disc_acc_max 0.7
+  max_steps: 15000
+  local_batch_size: 4
+
+  validation_frequency: 100
+  training_visualization_frequency: 200
+  validation_visualization_frequency: 50
+  logging_frequency: 50
+  save_frequency: 200
+
+  enable_gds: False
+  max_intra_threads: 1
+  enable_amp: True
+  

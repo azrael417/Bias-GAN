@@ -11,12 +11,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import yparams as yp
 
 # the training module
-from infill3d_module import Infill3d
+from infill3d_gan_module import Infill3dGAN
 
 hyperparameter_defaults = dict(
     max_intra_threads = 1,
     num_workers = 1,
-    model_prefix = "infill3d",
+    model_prefix = "infill3d_gan",
     enable_amp = True,
     checkpoint = "",
     enable_gds = False,
@@ -46,10 +46,10 @@ def main(pargs):
         config["run_tag"] = pargs.run_tag
     
     # initialize model
-    inf3d = Infill3d(config)
+    inf3dgan = Infill3dGAN(config)
     
     # train
-    inf3d.train()
+    inf3dgan.train()
     
     
 if __name__ == "__main__":

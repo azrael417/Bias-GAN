@@ -41,7 +41,7 @@ import apex.optimizers as aoptim
 from comm.distributed import comm as distcomm
 
 
-class Infill3dGan(object):
+class Infill3dGAN(object):
     
     def __init__(self, config):
         # init communicator
@@ -292,11 +292,11 @@ class Infill3dGan(object):
                     train_generator = True
                     train_discriminator = False
                 else:
-                    if (d_acc_avg > self.config["acc_max"]):
+                    if (d_acc_avg > self.config["disc_acc_max"]):
                         # discriminator is too good:
                         train_generator = True
                         train_discriminator = False
-                    elif (d_acc_avg < self.config["acc_min"]):
+                    elif (d_acc_avg < self.config["disc_acc_min"]):
                         # discriminator is too bad
                         train_generator = False
                         train_discriminator = True
