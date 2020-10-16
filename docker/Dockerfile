@@ -30,7 +30,7 @@ RUN pip install --upgrade wandb && \
 RUN conda install -y -c conda-forge ruamel.yaml
 
 # raytune:
-RUN pip install -U ray && pip install ray[tune]
+RUN pip install -U ray && pip install ray[tune] && pip install hyperopt
 
 #install numpy with pytorch extensions
 RUN mkdir -p /opt
