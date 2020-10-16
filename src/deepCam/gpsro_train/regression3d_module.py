@@ -142,7 +142,7 @@ class Regression3d(object):
                 raise NotImplementedError("Error, noise type {} not supported.".format(noise_type))
     
         # select optimizer
-        self.optimizer = ph.get_optimizer(self.net, self.config["optimizer"], 
+        self.optimizer = ph.get_optimizer(self.net.parameters(), self.config["optimizer"], 
                                           self.config["start_lr"], 
                                           self.config["adam_eps"], 
                                           self.config["weight_decay"])

@@ -132,12 +132,11 @@ class PConvUNet3d(nn.Module):
         self.dec_4 = PCBActiv3d(512 + 256, 256, activ='leaky', normalizer=normalizer)
         self.dec_3 = PCBActiv3d(256 + 128, 128, activ='leaky', normalizer=normalizer)
         self.dec_2 = PCBActiv3d(128 + 64, 64, activ='leaky', normalizer=normalizer)
-        self.dec_1 = PCBActiv3d(64 + output_channels, 32, activ='leaky', normalizer=normalizer)
+        self.dec_1 = PCBActiv3d(64 + input_channels, 32, activ='leaky', normalizer=normalizer)
 
         # for 1x1 resolution
-        self.input_enc_1 = PCBActiv3d(input_channels, 32, activ='leaky', sample='point-1', normalizer=normalizer)
-        self.last_conv = PCBActiv3d(32 + 32, output_channels,
-                                    normalizer=None, activ=None, sample='point-1', conv_bias=True)
+        self.last_conv = PCBActiv3d(32, output_channels, activ=None, normalizer=None,
+                                    sample='point-1', conv_bias=True)
 
         # init weights
         self.__init_weights()
@@ -194,9 +193,9 @@ class PConvUNet3d(nn.Module):
             h, h_mask = getattr(self, dec_l_key)(h, h_mask)
 
         # required for 1x1 resolution
-        hin, hin_mask = self.input_enc_1(input, input_mask)
-        hlast = torch.cat([h, hin], dim=1)
-        hlast_mask = torch.cat([h_mask, hin_mask], dim=1)
-        h, h_mask = self.last_conv(hlast, hlast_mask)
+        #hin, hin_mask = self.input_enc_1(input, input_mask)
+        #hlast = torch.cat([h, hin], dim=1)
+        #hlast_mask = torch.cat([h_mask, hin_mask], dim=1)
+        h, h_mask = self.last_conv(h, h_mask)
             
         return h, h_mask

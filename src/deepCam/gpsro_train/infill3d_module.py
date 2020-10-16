@@ -123,7 +123,7 @@ class Infill3d(object):
         if self.config["noise_dimensions"] > 0:
             if self.config["noise_type"] == "Uniform":
                 self.dist = torch.distributions.uniform.Uniform(0., 1.)
-            elif pargs.noise_type == "Normal":
+            elif self.config["noise_type"] == "Normal":
                 self.dist = torch.distributions.normal.Normal(0., 1.)
             else:
                 raise NotImplementedError("Error, noise type {} not supported.".format(self.config["noise_dimensions"]))
@@ -231,9 +231,9 @@ class Infill3d(object):
                     # generate noise vector and concat with inputs
                     inputs_noise = self.dist.rsample( (inputs_raw.shape[0], \
                                                         self.config["noise_dimensions"], \
-                                                        inputs_raw.shape[1], \
                                                         inputs_raw.shape[2], \
-                                                        inputs_raw.shape[3]) ).to(self.device)
+                                                        inputs_raw.shape[3], \
+                                                        inputs_raw.shape[4]) ).to(self.device)
                     inputs = torch.cat((inputs_raw, inputs_noise), dim = 1)
                 else:
                     inputs = inputs_raw
@@ -357,9 +357,9 @@ class Infill3d(object):
                 if self.dist is not None:
                     inputs_noise_val = self.dist.rsample( (inputs_raw_val.shape[0], \
                                                         self.config["noise_dimensions"], \
-                                                        inputs_raw_val.shape[1], \
                                                         inputs_raw_val.shape[2], \
-                                                        inputs_raw_val.shape[3]) ).to(self.device)
+                                                        inputs_raw_val.shape[3], \
+                                                        inputs_raw_val.shape[4]) ).to(self.device)
                     inputs_val = torch.cat((inputs_raw_val, inputs_noise_val), dim = 1)
                 else:
                     inputs_val = inputs_raw_val
