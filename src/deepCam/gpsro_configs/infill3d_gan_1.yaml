@@ -1,6 +1,6 @@
 default: &DEFAULT
 
-  root_dir: "/data/gpsro_data4_interp"
+  root_dir: "/data/gpsro_data4_interp/train"
   output_dir: "/data/gpsro_data4_interp/runs/{run_tag}"
   model_prefix: "infill3d_gan"
   checkpoint: ""
@@ -25,8 +25,9 @@ default: &DEFAULT
   disc_adam_eps: 1E-8
   disc_lr_schedule: {"type": "multistep", "milestones": [20000], "decay_rate": 0.1}
 
-  disc_acc_min 0.2
-  disc_acc_max 0.7
+  disc_acc_min: 0.2
+  disc_acc_max: 0.7
+  gen_warmup_steps: 0
   max_steps: 15000
   local_batch_size: 4
 

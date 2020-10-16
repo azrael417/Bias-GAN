@@ -8,10 +8,10 @@ import torch.nn.functional as F
 from torchvision import models
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from common.partialconv3d import PartialConv3d
 
 from infill3d import PCBActiv3d, PConvUNet3d as Generator
-
 
 class Discriminator(nn.Module):
     def __init__(self, layer_size=7, input_channels=3, normalizer=nn.BatchNorm3d):
@@ -73,9 +73,11 @@ class GAN(object):
                  upsampling_mode='nearest', 
                  gen_normalizer=nn.BatchNorm3d, disc_normalizer=nn.BatchNorm3d):
         # we need these guys
-        self.generator = Generator(layer_size=7, input_channels=3, output_channels=3, 
+        self.generator = Generator(layer_size=gen_layer_size,
+                                   input_channels=input_channels, output_channels=output_channels, 
                                    upsampling_mode='nearest', normalizer=gen_normalizer)
-        self.discriminator = Discriminator(disc_layer_size=7, input_channels=3, normalizer=disc_normalizer)
+        self.discriminator = Discriminator(layer_size=disc_layer_size,
+                                           input_channels=input_channels, normalizer=disc_normalizer)
         
     def generate(self, inp, mask):
         x, _ = self.generator(inp, mask)

@@ -116,11 +116,10 @@ class Infill3dGAN(object):
         self.net = dxi.GAN(input_channels = n_input_channels, output_channels = n_output_channels, 
                            gen_normalizer = gen_normalizer, disc_normalizer = disc_normalizer,
                            gen_layer_size = 6, disc_layer_size = 6)
-        self.net.to(self.device)
         
         # extract handles
-        self.generator = self.net.generator
-        self.discriminator = self.net.discriminator
+        self.generator = self.net.generator.to(self.device)
+        self.discriminator = self.net.discriminator.to(self.device)
 
         #select loss
         self.reconst_criterion = losses.InpaintingLoss(loss_type = self.config["loss_type"]).to(self.device)
@@ -138,7 +137,7 @@ class Infill3dGAN(object):
         if self.config["noise_dimensions"] > 0:
             if self.config["noise_type"] == "Uniform":
                 self.dist = torch.distributions.uniform.Uniform(0., 1.)
-            elif pargs.noise_type == "Normal":
+            elif self.config["noise_type"] == "Normal":
                 self.dist = torch.distributions.normal.Normal(0., 1.)
             else:
                 raise NotImplementedError("Error, noise type {} not supported.".format(self.config["noise_type"]))
@@ -163,9 +162,9 @@ class Infill3dGAN(object):
         self.disc_gscaler = amp.GradScaler(enabled = self.config["enable_amp"])
     
         # load net and optimizer states
-        self.start_step, self.start_epoch = self.comm.init_training_state(self.generator, self.discriminator, 
-                                                                          self.gen_optimizer, self.disc_optimizer,
-                                                                          self.config["checkpoint"], self.device)
+        self.start_step, self.start_epoch = self.comm.init_gan_training_state(self.generator, self.discriminator, 
+                                                                              self.gen_optimizer, self.disc_optimizer,
+                                                                              self.config["checkpoint"], self.device)
     
         # make model distributed
         self.generator = self.comm.DistributedModel(self.generator)
@@ -246,7 +245,8 @@ class Infill3dGAN(object):
         
         # Train network
         if (self.config["logging_frequency"] > 0) and (self.comm.rank() == 0):
-            wandb.watch(self.net)
+            wandb.watch(self.generator)
+            wandb.watch(self.discriminator)
     
         # report training started
         self.comm.printr('{:14.4f} REPORT: starting training'.format(dt.datetime.now().timestamp()), 0)
@@ -254,9 +254,15 @@ class Infill3dGAN(object):
         # get start info
         step = self.start_step
         epoch = self.start_epoch
-        current_lr = self.config["start_lr"] if (self.scheduler is None) else self.scheduler.get_last_lr()[0]
-    
-        self.net.train()
+
+        # get LR
+        if self.disc_scheduler is not None:
+            d_current_lr = self.disc_scheduler.get_last_lr()[0]
+        if self.gen_scheduler is not None:
+            g_current_lr = self.gen_scheduler.get_last_lr()[0]
+        
+        self.generator.train()
+        self.discriminator.train()
         d_acc_avg = 0.5
         while True:
             self.comm.printr('{:14.4f} REPORT: starting epoch {}'.format(dt.datetime.now().timestamp(), epoch), 0)
@@ -267,28 +273,28 @@ class Infill3dGAN(object):
             for inputs_raw, outputs_real, masks_raw, filename in self.train_loader:
                 
                 #unsqueeze
-                inputs_raw = torch.unsqueeze(inputs_raw, dim=1)
-                outputs_real = torch.unsqueeze(outputs_real, dim=1)
-                masks_raw = torch.unsqueeze(masks, dim=1)
+                inputs_raw = torch.unsqueeze(inputs_raw, dim = 1).to(self.device)
+                outputs_real = torch.unsqueeze(outputs_real, dim = 1).to(self.device)
+                masks_raw = torch.unsqueeze(masks_raw, dim = 1).to(self.device)
                 
                 # generate noise vector and concat with inputs, also do same with masks
                 inputs_noise = self.dist.rsample( (inputs_raw.shape[0], \
                                                     self.config["noise_dimensions"], \
-                                                    inputs_raw.shape[1], \
                                                     inputs_raw.shape[2], \
-                                                    inputs_raw.shape[3]) ).to(self.device)
-                masks_noise = torch.ones( (inputs_raw.shape[0], \
+                                                    inputs_raw.shape[3], \
+                                                    inputs_raw.shape[4]) ).to(self.device)
+                masks_noise = torch.ones( (masks_raw.shape[0], \
                                            self.config["noise_dimensions"], \
-                                           inputs_raw.shape[1], \
-                                           inputs_raw.shape[2], \
-                                           inputs_raw.shape[3]) ).to(self.device)
+                                           masks_raw.shape[2], \
+                                           masks_raw.shape[3], \
+                                           masks_raw.shape[4]) ).to(self.device)
                 inputs = torch.cat((inputs_raw, inputs_noise), dim = 1)
                 masks = torch.cat((masks_raw, masks_noise), dim = 1)
                 
                 # see what we need to train
                 train_generator = True
                 train_discriminator = True
-                if step < pargs.generator_warmup_steps:
+                if step < self.config["gen_warmup_steps"]:
                     train_generator = True
                     train_discriminator = False
                 else:
@@ -309,8 +315,8 @@ class Infill3dGAN(object):
                 # Discriminator part
                 with amp.autocast(enabled = self.config["enable_amp"]):
                     outputs_fake, _ = self.generator(inputs, masks)
-                    logits_real, prediction_real = self.discriminator(outputs_real)
-                    logits_fake, prediction_fake = self.discriminator(outputs_fake)
+                    logits_real, prediction_real = self.discriminator(outputs_real, masks)
+                    logits_fake, prediction_fake = self.discriminator(outputs_fake, masks)
                     # losses
                     d_loss = self.gan_criterion.d_loss(logits_real, logits_fake)
                     d_loss *= self.loss_weights["adv"]
@@ -320,9 +326,9 @@ class Infill3dGAN(object):
                 d_loss_list.append(d_loss_avg)
                 
                 # accuracy calculation
-                d_acc = 0.5 * (metrics.accuracy(prediction_real, self.gan_criterion.label_real) 
-                                + metrics.accuracy(prediction_fake, self.gan_criterion.label_fake))
-                d_acc_avg = self.comm.metric_average(d_acc, "train_accuracy_d", device = self.device)
+                #d_acc = 0.5 * (metrics.accuracy(prediction_real, self.gan_criterion.label_real) 
+                #                + metrics.accuracy(prediction_fake, self.gan_criterion.label_fake))
+                #d_acc_avg = self.comm.metric_average(d_acc, "train_accuracy_d", device = self.device)
                 
                 # train disco
                 if train_discriminator:
@@ -333,28 +339,27 @@ class Infill3dGAN(object):
                     self.disc_gscaler.update()
                     
                     if self.disc_scheduler is not None:
-                        disc_current_lr = self.disc_scheduler.get_last_lr()[0]
+                        d_current_lr = self.disc_scheduler.get_last_lr()[0]
                         self.disc_scheduler.step()
                 
                 
                 # Generator part
                 with amp.autocast(enabled = self.config["enable_amp"]):
                     outputs_fake, _ = self.generator(inputs, masks)
-                    logits_fake, _ = self.discriminator(outputs_fake)
+                    logits_fake, _ = self.discriminator(outputs_fake, masks)
                     # reconstruction loss
-                    rec_loss_dict = self.reconst_criterion(inputs_raw, outputs_fake, outputs_real, masks_raw)
+                    g_loss_dict = self.reconst_criterion(inputs_raw, outputs_fake, outputs_real, masks_raw)
                     # adversarial loss
-                    rec_loss_dict["adv"] = self.gan_criterion.g_loss(logits_fake)
+                    g_loss_dict["adv"] = self.gan_criterion.g_loss(logits_fake)
                     
                 # reduce across ranks
-                rec_loss_dict_avg = {}
-                rec_loss = 0.
-                for key in loss_dict:
-                    rec_loss += rec_loss_dict[key] * self.loss_weights[key]
-                    rec_loss_dict_avg[key] = self.comm.metric_average(rec_loss_dict[key], "train_loss_g_" + key, device = self.device)
+                g_loss_dict_avg = {}
+                g_loss = 0.
+                for key in g_loss_dict:
+                    g_loss += g_loss_dict[key] * self.loss_weights[key]
+                    g_loss_dict_avg[key] = self.comm.metric_average(g_loss_dict[key], "train_loss_g_" + key, device = self.device)
                 
                 # combine losses and average
-                g_loss += rec_loss
                 g_loss_avg = self.comm.metric_average(g_loss, "train_loss_g", device = self.device)
                 g_loss_list.append(g_loss_avg)
             
@@ -365,7 +370,7 @@ class Infill3dGAN(object):
                     self.gen_gscaler.update()
                     
                     if self.gen_scheduler is not None:
-                        gen_current_lr = self.gen_scheduler.get_last_lr()[0]
+                        g_current_lr = self.gen_scheduler.get_last_lr()[0]
                         self.gen_scheduler.step()
 
                 #step counter
@@ -378,7 +383,7 @@ class Infill3dGAN(object):
 
                 #visualize if requested
                 if (step % self.config["training_visualization_frequency"] == 0) and (self.comm.rank() == 0):
-                    sample_idx = np.random.randint(low=0, high=label.shape[0])
+                    sample_idx = np.random.randint(low=0, high=outputs_real.shape[0])
                     plotname = os.path.join(self.output_dir, "plot_train_step{}_sampleid{}.png".format(step, sample_idx))
                     prediction = outputs_fake.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
                     groundtruth = outputs_real.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
@@ -394,15 +399,16 @@ class Infill3dGAN(object):
                     wandb.log({"Training Loss Generator total": g_loss_avg}, step = step)
                     wandb.log({"Training Loss Discriminator total": d_loss_avg}, step = step)
                     wandb.log({"Training Accuracy Discriminator total": d_acc_avg}, step = step)
-                    for key in loss_dict_avg:
-                        wandb.log({"Training Loss Generator " + key : loss_dict_avg[key]}, step = step)
+                    for key in g_loss_dict_avg:
+                        wandb.log({"Training Loss Generator " + key : g_loss_dict_avg[key]}, step = step)
                     wandb.log({"Current Learning Rate Generator": g_current_lr}, step = step)
                     wandb.log({"Current Learning Rate Discriminator": d_current_lr}, step = step)
                 
                 # validation step if desired
                 if (step % self.config["validation_frequency"] == 0):
                     self.validate(step, epoch)
-                    self.net.train()
+                    self.generator.train()
+                    self.discriminator.train()
             
                 #save model if desired
                 if (step % self.config["save_frequency"] == 0) and (self.comm.rank() == 0):
@@ -426,7 +432,8 @@ class Infill3dGAN(object):
     
     def validate(self, step, epoch):
         #eval
-        self.net.eval()
+        self.generator.eval()
+        self.discriminator.eval()
 
         # vali loss
         loss_list_val = []
@@ -440,32 +447,33 @@ class Infill3dGAN(object):
         with torch.no_grad():
 
             # iterate over validation sample
-            for step_val, (inputs_raw_val, outputs_real_val, masks_val, filename) in enumerate(self.validation_loader):
+            for step_val, (inputs_raw_val, outputs_real_val, masks_raw_val, filename) in enumerate(self.validation_loader):
                 
                 #unsqueeze
-                inputs_raw_val = torch.unsqueeze(inputs_raw_val, dim=1)
-                outputs_real_val = torch.unsqueeze(label_val, dim=1)
-                masks_raw_val = torch.unsqueeze(masks_val, dim=1)
+                inputs_raw_val = torch.unsqueeze(inputs_raw_val, dim=1).to(self.device)
+                outputs_real_val = torch.unsqueeze(outputs_real_val, dim=1).to(self.device)
+                masks_raw_val = torch.unsqueeze(masks_raw_val, dim=1).to(self.device)
                 
                 # generate noise vector and concat with inputs
                 inputs_noise_val = self.dist.rsample( (inputs_raw_val.shape[0], \
                                                        self.config["noise_dimensions"], \
-                                                       inputs_raw_val.shape[1], \
                                                        inputs_raw_val.shape[2], \
-                                                       inputs_raw_val.shape[3]) ).to(self.device)
-                masks_noise_val = torch.ones( (inputs_raw_val.shape[0], \
+                                                       inputs_raw_val.shape[3], \
+                                                       inputs_raw_val.shape[4]) ).to(self.device)
+                masks_noise_val = torch.ones( (masks_raw_val.shape[0], \
                                                self.config["noise_dimensions"], \
-                                               inputs_raw_val.shape[1], \
-                                               inputs_raw_val.shape[2], \
-                                               inputs_raw_val.shape[3]) ).to(self.device)
+                                               masks_raw_val.shape[2], \
+                                               masks_raw_val.shape[3], \
+                                               masks_raw_val.shape[4]) ).to(self.device)
                 inputs_val = torch.cat((inputs_raw_val, inputs_noise_val), dim = 1)
                 masks_val = torch.cat((masks_raw_val, masks_noise_val), dim = 1)
         
                 # forward pass
-                outputs_fake_val, _ = self.net(inputs_val, masks_val)
+                with amp.autocast(enabled = self.config["enable_amp"]):
+                    outputs_fake_val, _ = self.generator(inputs_val, masks_val)
 
                 # Compute loss and average across nodes
-                loss_dict = self.criterion(inputs_raw_val, outputs_fake_val, outputs_real_val, masks_val)
+                loss_dict = self.reconst_criterion(inputs_raw_val, outputs_fake_val, outputs_real_val, masks_val)
                 loss_val = 0.
                 for key in loss_dict:
                     loss_val += loss_dict[key] * self.loss_weights[key]
@@ -482,10 +490,10 @@ class Infill3dGAN(object):
                 
                 # visualize the last sample if requested
                 if (step_val % self.config["validation_visualization_frequency"] == 0) and (self.comm.rank() == 0):
-                    sample_idx = np.random.randint(low=0, high=label_val.shape[0])
+                    sample_idx = np.random.randint(low=0, high=outputs_real_val.shape[0])
                     plotname = os.path.join(self.output_dir, "plot_validation_step{}_valstep{}_sampleid{}.png".format(step,step_val,sample_idx))
-                    prediction_val = outputs_val.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
-                    groundtruth_val = label_val.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
+                    prediction_val = outputs_fake_val.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
+                    groundtruth_val = outputs_real_val.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
                     self.gpviz.visualize_prediction(plotname, prediction_val, groundtruth_val)
                 
                     #log if requested
