@@ -5,13 +5,13 @@ import torch.optim as optim
 import apex.optimizers as aoptim
 
 
-def get_optimizer(model, optimizer_name, start_lr, adam_eps, weight_decay):
+def get_optimizer(parameters, optimizer_name, start_lr, adam_eps, weight_decay):
     if optimizer_name == "Adam":
-        optimizer = optim.Adam(model.parameters(), lr=start_lr, eps=adam_eps, weight_decay=weight_decay)
+        optimizer = optim.Adam(parameters, lr=start_lr, eps=adam_eps, weight_decay=weight_decay)
     elif optimizer_name == "AdamW":
-        optimizer = optim.AdamW(model.parameters(), lr=start_lr, eps=adam_eps, weight_decay=weight_decay)
+        optimizer = optim.AdamW(parameters, lr=start_lr, eps=adam_eps, weight_decay=weight_decay)
     elif optimizer_name == "LAMB":
-        optimizer = aoptim.FusedLAMB(model.parameters(), lr=start_lr, eps=adam_eps, weight_decay=weight_decay)
+        optimizer = aoptim.FusedLAMB(parameters, lr=start_lr, eps=adam_eps, weight_decay=weight_decay)
     else:
         raise NotImplementedError("Error, optimizer {} not supported".format(optimizer_name))
 
