@@ -17,6 +17,7 @@ from infill3d_module import Infill3d
 import ray
 from ray import tune
 from ray.tune import Trainable, run, sample_from
+from ray.tune.suggest import ConcurrencyLimiter
 from ray.tune.schedulers import AsyncHyperBandScheduler
 from hyperopt import hp
 from ray.tune.suggest.hyperopt import HyperOptSearch
@@ -41,7 +42,7 @@ hyperparameter_defaults = dict(
 )
 
 
-def train_wrapper(config):
+def train_wrapper(config, checkpoint_dir=None):
     
     # initialize model
     inf3d = Infill3d(config)
@@ -69,11 +70,13 @@ def main(pargs):
         config["run_tag"] = pargs.run_tag
 
     # init ray
-    ray.init(configure_logging=False)
+    ray.init()
         
     # override config
     tune_config = {'batch_size':  hp.choice('batch_size', [4, 8, 16, 32]),
-                   'start_lr': hp.loguniform('start_lr', 1e-5, 1e-1),
+                   'start_lr': hp.loguniform('start_lr', np.log(1e-6), np.log(1e-1)),
+                   'weight_decay': hp.loguniform('weight_decay', np.log(0.001), np.log(1.)),
+                   'layer_normalization': hp.choice('layer_normalization', ["instance_norm", "batch_norm"]),
                    'lr_schedule': hp.choice('lr_schedule', [
                        {"type": "multistep", "milestones": [5000], "decay_rate": 0.1},
                        {"type": "multistep", "milestones": [10000], "decay_rate": 0.1},
@@ -84,25 +87,30 @@ def main(pargs):
     # update config:
     for key in tune_config.keys():
         config[key] = tune_config[key]
-
-    print(config)
         
-    tune_kwargs = {'num_samples': 1,
+    tune_kwargs = {'num_samples': 100,
                    'config': config}
 
-    current_best_params = [{"batch_size": 2, "start_lr": 1e-4, 'lr_schedule': 1}]
+    current_best_params = [{"batch_size": 2, 
+                            "start_lr": 0.00303, 
+                            'lr_schedule': 2, 
+                            "weight_decay": 0.01, 
+                            'layer_normalization': 1}]
     
     # create scheduler and search
-    scheduler = AsyncHyperBandScheduler()
-    algo = HyperOptSearch(points_to_evaluate=current_best_params)
+    #scheduler = AsyncHyperBandScheduler()
+    algo = HyperOptSearch(config, points_to_evaluate = current_best_params, metric='validation_loss', mode='min')
+    algo = ConcurrencyLimiter(algo, max_concurrent=1)
     
     # run the training
     tune.run(train_wrapper,
-             search_alg=algo,
-             scheduler=scheduler,
-             metric="validation_loss",
-             mode="min",
-             **tune_kwargs)
+             loggers=[WandbLogger],
+             resources_per_trial={'gpu': 1},
+             num_samples=20,
+             search_alg=algo)
+
+    # goodbye
+    ray.shutdown()
     
 if __name__ == "__main__":
 

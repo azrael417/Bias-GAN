@@ -10,22 +10,25 @@ from apex.parallel import DistributedDataParallel as DDP
 class comm(object):
     
     def metric_average(self, val, name, op_name=None, device=None):
-        reduce_op = dist.ReduceOp.SUM
-        fact = 1.
-        if op_name == "average":
-            fact = 1. / float(self.size())
+        if dist.is_available() and dist.is_initialized():
+            reduce_op = dist.ReduceOp.SUM
+            fact = 1.
+            if op_name == "average":
+                fact = 1. / float(self.size())
 
-        if isinstance(val, torch.Tensor):
-            tensor = val.clone().detach().requires_grad_(False)
-        else:
-            tensor = torch.tensor(val)
+            if isinstance(val, torch.Tensor):
+                tensor = val.clone().detach().requires_grad_(False)
+            else:
+                tensor = torch.tensor(val)
             
-        if device is not None:
-            tensor = tensor.to(device)
+            if device is not None:
+                tensor = tensor.to(device)
             
-        dist.all_reduce(tensor, op = reduce_op)
+            dist.all_reduce(tensor, op = reduce_op)
         
-        return fact * tensor.item()
+            return fact * tensor.item()
+        else:
+            return val
 
     
     def printr(self, msg, rank=0):
@@ -53,10 +56,11 @@ class comm(object):
             os.environ["MASTER_ADDR"] = "localhost"
             comm_rank = 0
             comm_size = 1
-            
-        dist.init_process_group(backend = "nccl",
-                                rank = comm_rank,
-                                world_size = comm_size)
+
+        if mode != "dummy":
+            dist.init_process_group(backend = "nccl",
+                                    rank = comm_rank,
+                                    world_size = comm_size)
         
     def size(self):
         """
@@ -84,11 +88,8 @@ class comm(object):
         """
         Gets node local rank or returns zero if distributed is not initialized.
         """
-        if not (dist.is_available() and dist.is_initialized()):
-            return 0
-        
         #number of GPUs per node
-        if torch.cuda.is_available():
+        if dist.is_available() and dist.is_initialized() and torch.cuda.is_available():
             local_rank = dist.get_rank() % torch.cuda.device_count()
         else:
             local_rank = 0
@@ -97,7 +98,8 @@ class comm(object):
 
     
     def broadcast(self, tensor, root_rank, name = None):
-        dist.broadcast(tensor, src = root_rank)
+        if dist.is_available() and dist.is_initialized():
+            dist.broadcast(tensor, src = root_rank)
         return tensor
 
     
@@ -114,7 +116,6 @@ class comm(object):
             for k in checkpoint['model']:
                 model_dict[k.replace("module.","")] = checkpoint['model'][k]
             model.load_state_dict(model_dict)
-            amp.load_state_dict(checkpoint['amp'])
         else:
             start_step = 0
             start_epoch = 0
@@ -145,9 +146,6 @@ class comm(object):
             for	k in checkpoint['discriminator']:
                 model[k.replace("module.","")] = checkpoint['discriminator'][k]
             dmodel.load_state_dict(model)
-            
-            # AMP state
-            amp.load_state_dict(checkpoint['amp'])
         else:
             start_step = 0
             start_epoch = 0
@@ -157,7 +155,10 @@ class comm(object):
 
     
     def DistributedModel(self, model):
-        return DDP(model)
+        if dist.is_available() and dist.is_initialized():
+            return DDP(model)
+        else:
+            return model
 
     
     #this is just a no-op for pytorch distributed
