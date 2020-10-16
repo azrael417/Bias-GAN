@@ -20,7 +20,7 @@ default: &DEFAULT
   lr_schedule: {"type": "multistep", "milestones": [10000], "decay_rate": 0.1}
 
   validation_frequency: 100
-  training_visualization_frequency: 200
+  training_visualization_frequency: 500
   validation_visualization_frequency: 50
   logging_frequency: 50
   save_frequency: 100000
