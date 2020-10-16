@@ -41,11 +41,7 @@ hyperparameter_defaults = dict(
 )
 
 
-def train_wrapper(config, batch_size, start_lr, lr_schedule):
-    # update config
-    config["start_lr"] = start_lr
-    config["batch_size"] = batch_size
-    config["lr_schedule"] = lr_schedule
+def train_wrapper(config):
     
     # initialize model
     inf3d = Infill3d(config)
@@ -72,6 +68,9 @@ def main(pargs):
     if pargs.run_tag is not None:
         config["run_tag"] = pargs.run_tag
 
+    # init ray
+    ray.init(configure_logging=False)
+        
     # override config
     tune_config = {'batch_size':  hp.choice('batch_size', [4, 8, 16, 32]),
                    'start_lr': hp.loguniform('start_lr', 1e-5, 1e-1),
@@ -79,11 +78,19 @@ def main(pargs):
                        {"type": "multistep", "milestones": [5000], "decay_rate": 0.1},
                        {"type": "multistep", "milestones": [10000], "decay_rate": 0.1},
                        {"type": "cosine_annealing", "t_max": 500, "eta_min": 0},
-                       {"type": "cosine_annealing", "t_max": 1000, "eta_min": 0}
-                   ])
+                       {"type": "cosine_annealing", "t_max": 1000, "eta_min": 0}])
     }
 
-    current_best_params={"batch_size": 2, "start_lr": 1e-4, 'lr_schedule': 2}
+    # update config:
+    for key in tune_config.keys():
+        config[key] = tune_config[key]
+
+    print(config)
+        
+    tune_kwargs = {'num_samples': 1,
+                   'config': config}
+
+    current_best_params = [{"batch_size": 2, "start_lr": 1e-4, 'lr_schedule': 1}]
     
     # create scheduler and search
     scheduler = AsyncHyperBandScheduler()
@@ -95,7 +102,7 @@ def main(pargs):
              scheduler=scheduler,
              metric="validation_loss",
              mode="min",
-             **tune_config)
+             **tune_kwargs)
     
 if __name__ == "__main__":
 
