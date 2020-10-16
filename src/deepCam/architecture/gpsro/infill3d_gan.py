@@ -10,7 +10,7 @@ from torchvision import models
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.partialconv3d import PartialConv3d
 
-from infill3d import weights_init, PCBActiv3d, PConvUNet3d as Generator
+from infill3d import PCBActiv3d, PConvUNet3d as Generator
 
 
 class Discriminator(nn.Module):
@@ -28,6 +28,19 @@ class Discriminator(nn.Module):
         # critic layer
         self.linear = nn.Linear(512,1, bias = False)
         self.sigmoid = nn.Sigmoid()
+
+        # init weights
+        self.__init_weights()
+
+    def __init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv3d):
+                nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            if hasattr(m, 'bias') and m.bias is not None:
+                nn.init.zeros_(m.bias)
 
     def forward(self, input, input_mask):
         h_dict = {}  # for the output of enc_N

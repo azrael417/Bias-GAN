@@ -139,6 +139,22 @@ class PConvUNet3d(nn.Module):
         self.last_conv = PCBActiv3d(32 + 32, output_channels,
                                     normalizer=None, activ=None, sample='point-1', conv_bias=True)
 
+        # init weights
+        self.__init_weights()
+
+    def __init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv3d):
+                nn.init.kaiming_normal_(m.weight)
+                #gain = nn.init.calculate_gain('leaky_relu', 0.2)
+                #n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                #nn.init.normal_(m.weight, mean=0., std=gain/math.sqrt(n))
+            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            if hasattr(m, 'bias') and m.bias is not None:
+                nn.init.zeros_(m.bias)
+
     def forward(self, input, input_mask):
         h_dict = {}  # for the output of enc_N
         h_mask_dict = {}  # for the output of enc_N
