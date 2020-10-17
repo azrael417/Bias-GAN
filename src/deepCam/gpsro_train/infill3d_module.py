@@ -365,7 +365,8 @@ class Infill3d(object):
                     inputs_val = inputs_raw_val
         
                 # forward pass
-                outputs_val, _ = self.net(inputs_val, masks_val)
+                with amp.autocast(enabled = self.config["enable_amp"]):
+                    outputs_val, _ = self.net(inputs_val, masks_val)
 
                 # Compute loss and average across nodes
                 loss_dict = self.criterion(inputs_raw_val, outputs_val, label_val, masks_val)
