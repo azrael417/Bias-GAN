@@ -28,7 +28,10 @@ class comm(object):
         
             return fact * tensor.item()
         else:
-            return val
+            if isinstance(val, torch.Tensor):
+                return val.item()
+            else:
+                return val
 
     
     def printr(self, msg, rank=0):
