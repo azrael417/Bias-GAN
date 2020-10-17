@@ -383,15 +383,16 @@ class Regression3d(object):
                 if self.dist is not None:
                     inputs_noise_val = self.dist.rsample( (inputs_raw_val.shape[0], \
                                                         self.config["noise_dimensions"], \
-                                                        inputs_raw_val.shape[1], \
                                                         inputs_raw_val.shape[2], \
-                                                        inputs_raw_val.shape[3]) ).to(self.device)
+                                                        inputs_raw_val.shape[3], \
+                                                        inputs_raw_val.shape[4]) ).to(self.device)
                     inputs_val = torch.cat((inputs_raw_val, inputs_noise_val), dim = 1)
                 else:
                     inputs_val = inputs_raw_val
             
                 # forward pass
-                outputs_val = self.net(inputs_val)
+                with amp.autocast(enabled = self.config["enable_amp"]):
+                    outputs_val = self.net(inputs_val)
 
                 # Compute loss and average across nodes
                 if self.config["enable_masks"]:
