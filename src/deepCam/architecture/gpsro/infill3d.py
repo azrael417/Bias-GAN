@@ -148,7 +148,7 @@ class PConvUNet3d(nn.Module):
                 #gain = nn.init.calculate_gain('leaky_relu', 0.2)
                 #n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 #nn.init.normal_(m.weight, mean=0., std=gain/math.sqrt(n))
-            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+            elif isinstance(m, nn.BatchNorm3d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
             if hasattr(m, 'bias') and m.bias is not None:
