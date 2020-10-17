@@ -28,14 +28,14 @@ default: &DEFAULT
   disc_acc_min: 0.2
   disc_acc_max: 0.7
   gen_warmup_steps: 0
-  max_steps: 15000
+  max_steps: 30000
   local_batch_size: 4
 
   validation_frequency: 100
   training_visualization_frequency: 200
   validation_visualization_frequency: 50
   logging_frequency: 50
-  save_frequency: 200
+  save_frequency: 2000
 
   enable_gds: False
   max_intra_threads: 1
