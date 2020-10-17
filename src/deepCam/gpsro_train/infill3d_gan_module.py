@@ -326,9 +326,9 @@ class Infill3dGAN(object):
                 d_loss_list.append(d_loss_avg)
                 
                 # accuracy calculation
-                #d_acc = 0.5 * (metrics.accuracy(prediction_real, self.gan_criterion.label_real) 
-                #                + metrics.accuracy(prediction_fake, self.gan_criterion.label_fake))
-                #d_acc_avg = self.comm.metric_average(d_acc, "train_accuracy_d", device = self.device)
+                d_acc = 0.5 * (metrics.accuracy(prediction_real, self.gan_criterion.label_real) 
+                                + metrics.accuracy(prediction_fake, self.gan_criterion.label_fake))
+                d_acc_avg = self.comm.metric_average(d_acc, "train_accuracy_d", device = self.device)
                 
                 # train disco
                 if train_discriminator:
@@ -415,8 +415,10 @@ class Infill3dGAN(object):
                     checkpoint = {
                         'step': step,
                         'epoch': epoch,
-                        'model': self.net.state_dict(),
-                        'optimizer': self.optimizer.state_dict(),
+                        'generator': self.generator.state_dict(),
+                        'discriminator': self.discriminator.state_dict(),
+                        'g_opt': self.gen_optimizer.state_dict(),
+                        'd_opt': self.disc_optimizer.state_dict()
                     }
                     torch.save(checkpoint, os.path.join(self.output_dir, self.config["model_prefix"] + "_step_" + str(step) + ".cpt") )
 

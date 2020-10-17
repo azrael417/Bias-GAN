@@ -11,7 +11,7 @@ default: &DEFAULT
   disc_layer_normalization: "batch_norm"
 
   loss_type: "l2"
-  loss_weights: {"valid": 1.0, "hole": 0.5, "tv": 0., "adv": 1.}
+  loss_weights: {"valid": 1.0, "hole": 0.5, "tv": 0., "adv": 0.5}
 
   gen_optimizer: "AdamW"
   gen_weight_decay: 0.01
