@@ -17,14 +17,14 @@ class moving_average(object):
 
 def accuracy(prediction, label, threshold = 0.5):
     # prediction
-    pred = torch.squeeze(prediction).detach()
+    pred = torch.squeeze(prediction)
     pred = (pred > threshold).float()
 
     # label
-    lab = torch.squeeze(label).detach()
+    lab = torch.squeeze(label)
     
     # correct predictions
-    correct = (pred == torch.squeeze(label, dim=1)).sum()
+    correct = (pred == lab).sum()
 
     # accuracy
     accuracy = correct / float(prediction.shape[0])
