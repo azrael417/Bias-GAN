@@ -226,7 +226,7 @@ class Xception3d(nn.Module):
                 # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 # m.weight.data.normal_(0, math.sqrt(2. / n))
                 nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+            elif isinstance(m, nn.BatchNorm3d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
             elif isinstance(m, nn.LayerNorm):
@@ -290,7 +290,7 @@ class ASPP_module(nn.Module):
                 # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 # m.weight.data.normal_(0, math.sqrt(2. / n))
                 torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+            elif isinstance(m, nn.BatchNorm3d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
             elif isinstance(m, nn.LayerNorm):
@@ -331,7 +331,7 @@ class InterpolationUpsampler(nn.Module):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 nn.init.normal_(m.weight, mean=0., std=gain/math.sqrt(n))
                 #nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu', 0.2)/np.sqrt(2.))
-            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+            elif isinstance(m, nn.BatchNorm3d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
             elif isinstance(m, nn.LayerNorm):
@@ -401,7 +401,7 @@ class DeconvUpsampler(nn.Module):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 nn.init.normal_(m.weight, mean=0., std=gain/math.sqrt(n))
                 #nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu', 0.2)/np.sqrt(2.))
-            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+            elif isinstance(m, nn.BatchNorm3d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
             elif isinstance(m, nn.LayerNorm):
@@ -457,7 +457,7 @@ class DeconvUpsamplerExtension(nn.Module):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 nn.init.normal_(m.weight, mean=0., std=gain/math.sqrt(n))
                 #nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu', 0.2)/np.sqrt(2.))
-            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+            elif isinstance(m, nn.BatchNorm3d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
             elif isinstance(m, nn.LayerNorm):
@@ -578,7 +578,7 @@ class DeepLab3d(nn.Module):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 nn.init.normal_(m.weight, mean=0., std=gain/math.sqrt(n))
                 #nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu', 0.2)/np.sqrt(2.))
-            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+            elif isinstance(m, nn.BatchNorm3d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
             elif isinstance(m, nn.LayerNorm):

@@ -36,7 +36,7 @@ class Discriminator(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
                 nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm3d) or isinstance(m, nn.InstanceNorm3d):
+            elif isinstance(m, nn.BatchNorm3d):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
             if hasattr(m, 'bias') and m.bias is not None:
