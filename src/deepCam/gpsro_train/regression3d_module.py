@@ -331,18 +331,6 @@ class Regression3d(object):
             #do some after-epoch prep, just for the books
             epoch += 1
         
-            # save model
-            if self.comm.rank()==0:
-          
-                # Save the model
-                checkpoint = {
-                    'step': step,
-                    'epoch': epoch,
-                    'model': self.net.state_dict(),
-                    'optimizer': self.optimizer.state_dict(),
-                }
-                torch.save(checkpoint, os.path.join(self.output_dir, self.config["model_prefix"] + "_epoch_" + str(epoch) + ".cpt") )
-
             #are we done?
             if step >= self.config["max_steps"]:
                 break

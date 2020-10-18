@@ -15,19 +15,19 @@ default: &DEFAULT
 
   gen_optimizer: "AdamW"
   gen_weight_decay: 0.01
-  gen_start_lr: 0.0001
+  gen_start_lr: 0.01
   gen_adam_eps: 1E-8
-  gen_lr_schedule: {"type": "multistep", "milestones": [20000], "decay_rate": 0.1}
+  gen_lr_schedule: {"type": "multistep", "milestones": [3000, 20000], "decay_rate": 0.1}
 
   disc_optimizer: "AdamW"
   disc_weight_decay: 0.01
-  disc_start_lr: 0.0001
+  disc_start_lr: 0.001
   disc_adam_eps: 1E-8
   disc_lr_schedule: {"type": "multistep", "milestones": [20000], "decay_rate": 0.1}
 
   disc_acc_min: 0.2
   disc_acc_max: 0.7
-  gen_warmup_steps: 0
+  gen_warmup_steps: 3000
   max_steps: 30000
   local_batch_size: 4
 
