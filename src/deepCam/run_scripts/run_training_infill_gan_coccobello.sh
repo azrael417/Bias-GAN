@@ -15,7 +15,7 @@ export CUDA_VISIBLE_DEVICES=1
 
 #total number of ranks
 config_name="infill3d_gan_1.yaml"
-run_tag="infill3d_gan_run1"
+run_tag="infill3d_gan_run2"
 
 #mpi options
 mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
