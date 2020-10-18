@@ -307,9 +307,13 @@ class Infill3d(object):
                 #are we done?
                 if step >= self.config["max_steps"]:
                     break
-                
+    
             #do some after-epoch prep, just for the books
             epoch += 1
+
+            #are we done?
+            if step >= self.config["max_steps"]:
+                break
                 
         self.comm.printr('{:14.4f} REPORT: finishing training'.format(dt.datetime.now().timestamp()), 0)
 
