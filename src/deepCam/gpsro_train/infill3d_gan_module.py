@@ -350,7 +350,8 @@ class Infill3dGAN(object):
                     # reconstruction loss
                     g_loss_dict = self.reconst_criterion(inputs_raw, outputs_fake, outputs_real, masks_raw)
                     # adversarial loss
-                    g_loss_dict["adv"] = self.gan_criterion.g_loss(logits_fake)
+                    if step >= self.config["gen_warmup_steps"]:
+                        g_loss_dict["adv"] = self.gan_criterion.g_loss(logits_fake)
                     
                 # reduce across ranks
                 g_loss_dict_avg = {}
@@ -428,6 +429,10 @@ class Infill3dGAN(object):
                 
             #do some after-epoch prep, just for the books
             epoch += 1
+
+            #are we done?
+            if step >= self.config["max_steps"]:
+                break
                 
         self.comm.printr('{:14.4f} REPORT: finishing training'.format(dt.datetime.now().timestamp()), 0)
 
