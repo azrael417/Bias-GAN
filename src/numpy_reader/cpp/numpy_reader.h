@@ -4,12 +4,13 @@
 //cuda stuff
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include "cufile.h"
+#include <cufile.h>
 
 //torch extension
 #include <torch/extension.h>
 
 //pread stuff
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -36,20 +37,21 @@ class NumpyReader {
 public:
   
   explicit NumpyReader(const bool& split_axis, const int& device) :
-    _num_inter_threads(1),
-    _num_intra_threads(1),
     _header_regex(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###"),
     _device(torch::kCPU),
-      _split_axis(split_axis),
-      _fortran_order(false),
-      _little_endian(true),
-      _numsample(0),
-      _numelem(0),
-      _typesize(0),
-      _batchsize(1),
-      _data(nullptr),
-      _ddata(nullptr),
-      _teptr(nullptr)
+    _split_axis(split_axis),
+    _num_inter_threads(1),
+    _num_intra_threads(1),
+    _fortran_order(false),
+    _little_endian(true),
+    _numsample(0),
+    _numelem(0),
+    _typesize(0),
+    _batchsize(1),
+    _data(nullptr),
+    _ddata(nullptr),
+    _p2p_enabled(false),
+    _teptr(nullptr)
 		 {
        //set up typemap
        _typemap = {
@@ -77,8 +79,9 @@ public:
   ~NumpyReader(){
     if(_data != nullptr) delete [] _data;
     if(_ddata != nullptr){
-      //de-register dev buffer
-      _cf_status = cuFileBufDeregister(_ddata);
+      //deregister buffer
+      deregisterBuffer();
+      
       //free buffer
       cudaFree(_ddata);
     }
@@ -89,6 +92,31 @@ public:
   
   //set batch size:
   void SetBatchsize(const unsigned int& batch_size);
+
+  //set and get threads
+  void SetIntraThreads(const unsigned int& num_threads){
+    if (_num_intra_threads != num_threads) {
+      if (_ddata != nullptr) {
+	deregisterBuffer();
+      }
+      _num_intra_threads = num_threads;
+      if (_ddata != nullptr) {
+	registerBuffer();
+      }
+    }
+  }
+  
+  unsigned int GetIntraThreads() const {
+    return _num_intra_threads;
+  }
+  
+  void SetInterThreads(const unsigned int& num_threads) {
+    _num_inter_threads = num_threads;
+  }
+  
+  unsigned int GetInterThreads() const {
+    return _num_inter_threads;
+  }
 
   //prep and finish IO
   void InitFile(const std::string& filename);
@@ -108,6 +136,10 @@ public:
   int64_t getNumSamples() const{
     return _numsample;
   }
+
+  //function to enable nvlink for remote reads with GDS
+  void EnableP2P();
+  void DisableP2P();
   
   //return the shape vector
   std::vector<int64_t> getShape() const{
@@ -118,21 +150,21 @@ public:
   std::vector<int64_t> getStrides() const{
     return _stride;
   }
-
-  //variables
-  unsigned int _num_inter_threads;
-  unsigned int _num_intra_threads;
   
 private:
   //regex search
   const std::regex _header_regex;
-	
+  
   //external variables stored
   std::vector<int64_t> _shape;
   std::vector<int64_t> _stride;
   torch::Dtype _type;
   torch::Device _device;
   bool _split_axis;
+
+  //threads
+  unsigned int _num_inter_threads;
+  unsigned int _num_intra_threads;
   
   //other variables
   int _fd;
@@ -145,6 +177,10 @@ private:
   off_t _offset;
   unsigned char *_data, *_ddata;
   torch::Tensor _sample;
+
+  //NVLink stuff
+  bool _p2p_enabled;
+  int _num_gpu;
   
   //cufile stuff
   CUfileError_t _cf_status;
@@ -162,6 +198,14 @@ private:
   
   //allocate memory: only called by parse header
   void allocate();
+
+  //cufile register/deregister stuff
+  void registerBuffer();
+  void deregisterBuffer();
+  std::vector<std::pair<unsigned char*, size_t>> _reg_buff;
+  
+  // IO error handler
+  void handleIOError(int64_t ret);
   
   //read one item from src into dst
   void readSample(int64_t dst_idx, int64_t src_idx);

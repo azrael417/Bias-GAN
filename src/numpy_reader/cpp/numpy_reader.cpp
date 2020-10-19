@@ -1,5 +1,45 @@
 #include "numpy_reader.h"
 
+void NumpyReader::EnableP2P(){
+  if(!_p2p_enabled){
+    cudaGetDeviceCount(&_num_gpu);
+
+    //loop over all devices and enable p2p
+    for (int k = 0; k < _num_gpu; k++) {
+      cudaSetDevice(k);
+      for (int j = k+1; j < _num_gpu; j++) {
+	int access = 0;
+	cudaDeviceCanAccessPeer(&access, k, j);
+	if (access) {
+	  cudaDeviceEnablePeerAccess(j, 0 );
+	  cudaSetDevice(j);
+	  cudaDeviceEnablePeerAccess(k, 0 );
+	  cudaSetDevice(k);
+	}
+      }
+    }
+    _p2p_enabled = true;
+  }
+}
+
+void NumpyReader::DisableP2P(){
+  if(_p2p_enabled){
+    for (int k = 0; k < _num_gpu; k++) {
+      cudaSetDevice(k);
+      for (int j = k+1; j < _num_gpu; j++) {
+	int access = 0;
+	cudaDeviceCanAccessPeer(&access, k, j);
+	if (access) {
+	  cudaDeviceDisablePeerAccess(j);
+	  cudaSetDevice(j);
+	  cudaDeviceDisablePeerAccess(k);
+	  cudaSetDevice(k);
+	}
+      }
+    }
+    _p2p_enabled = false;
+  }
+}
 
 void NumpyReader::ParseFile(const std::string& filename){
   
@@ -198,12 +238,9 @@ void NumpyReader::allocate(){
 
   //gpu data
   if(_ddata != nullptr){
-    
-    //de-register dev buffer
-    _cf_status = cuFileBufDeregister(_ddata);
-    if( _cf_status.err != CU_FILE_SUCCESS ){
-      throw std::runtime_error("NumpyReader: failed to de-register device buffer.");
-    }
+
+    //deregister buffer
+    deregisterBuffer();
     
     //free buffer
     cudaFree(_ddata);
@@ -220,11 +257,8 @@ void NumpyReader::allocate(){
     //allocate buffer
     cudaMalloc((void**)&(_ddata), _batchsize * _numelem * _typesize);
 
-    //register for cuFile:
-    _cf_status = cuFileBufRegister(_ddata, _batchsize * _numelem * _typesize, 0);
-    if( _cf_status.err != CU_FILE_SUCCESS ){
-      throw std::runtime_error("NumpyReader: failed to register device buffer.");
-    }
+    //register buffer
+    registerBuffer();
   }
   else{
     _data = new unsigned char[_batchsize * _numelem * _typesize];
@@ -252,6 +286,41 @@ void NumpyReader::allocate(){
   }
 }
 
+void NumpyReader::deregisterBuffer(){
+  //de-register dev buffer
+  for(size_t i = 0; i < _reg_buff.size(); ++i){
+    _cf_status = cuFileBufDeregister(_reg_buff[i].first);
+    if( _cf_status.err != CU_FILE_SUCCESS ){
+      throw std::runtime_error("NumpyReader: failed to de-register device buffer.");
+    }
+  }
+  _reg_buff.clear();
+}
+
+void NumpyReader::registerBuffer(){
+  //register for cuFile: do registration per batch and then per intra-thread chunk
+  size_t bsize = _numelem * _typesize;
+  size_t nth = ((bsize / _num_intra_threads) > 1 ? _num_intra_threads : 1);
+  size_t chunksize = std::ceil(bsize / nth);
+  off_t offset = 0;
+  for(int64_t b = 0; b < _batchsize; ++b){
+    for(off_t t_off = 0; t_off < bsize; t_off += chunksize){
+      // determine size of buffer and offset
+      int64_t chunksize_eff = std::min(chunksize, bsize - t_off);
+      auto ptr = static_cast<unsigned char*>(_ddata + offset + t_off);
+
+      // register
+      _cf_status = cuFileBufRegister(ptr, chunksize_eff, 0);
+      if( _cf_status.err != CU_FILE_SUCCESS ){
+	throw std::runtime_error("NumpyReader: failed to register device buffer.");
+      }
+
+      // memorize registered buffer data
+      _reg_buff.push_back( std::make_pair(ptr, chunksize_eff) );
+    }
+    offset += bsize;
+  }
+}
 
 void NumpyReader::InitFile(const std::string& filename){
   //open use DirectIO on the GPU
@@ -264,8 +333,8 @@ void NumpyReader::InitFile(const std::string& filename){
     //set up cufile stuff
     _cf_descr.handle.fd = _fd;
     _cf_descr.fs_ops = nullptr;
-    _cf_descr.type = CU_FILE_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
-    _cf_status = cuFileImportExternalFile(&_cf_handle, &_cf_descr);
+    _cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
+    _cf_status = cuFileHandleRegister(&_cf_handle, &_cf_descr);
     if( _cf_status.err != CU_FILE_SUCCESS ){
       if( _cf_status.err == CU_FILE_IO_NOT_SUPPORTED ){
         throw std::runtime_error("NumpyReader: failed to register cufile handle. File system not supported.");
@@ -280,37 +349,59 @@ void NumpyReader::InitFile(const std::string& filename){
 
 void NumpyReader::FinalizeFile(){
   if( _device.is_cuda() ){
-    cuFileDestroyFile(_cf_handle);
+    cuFileHandleDeregister(_cf_handle);
   }
 
   //close file
   close(_fd);
 }
 
+void NumpyReader::handleIOError(int64_t ret) {
+  std::string errmsg;
+  if (ret == -1) {
+    std::string strbuff(256, '\0');
+    int e = errno;
+    errmsg = std::string(strerror_r(e, static_cast<char*>(&strbuff[0]), strbuff.size()));
+    errmsg = "NumpyReader: " + errmsg;
+  } else {
+    errmsg = "NumpyReader: read failed with error " + std::to_string(-ret) + cufileop_status_error(static_cast<CUfileOpError>(-ret));
+  }
+  
+  // throw exception
+  try{
+    throw std::ios_base::failure(errmsg);
+  }
+  catch(...){
+    _teptr = std::current_exception();
+  }
+}
+
 
 void NumpyReader::readChunk(int64_t dest_off, int64_t src_off, int64_t size){
-  int64_t nread;
-  if( ! _device.is_cuda() ){
-    nread = pread(_fd, _data + dest_off, size, _offset + src_off);
-  }
-  else{
-    //set device
-    cudaSetDevice(_device.index());
 
-    //read
-    //old call
-    //nread = cuFileRead(_cf_handle, static_cast<void*>(_ddata + dest_off), size, _offset + src_off);
-    //new call with explicit offset
-    //nread = cuFileRead( _cf_handle, static_cast<void*>(_ddata), size, static_cast<off_t>(_offset + src_off), static_cast<off_t>(dest_off) );
-    //new call w/o explicit offset
-    nread = cuFileRead( _cf_handle, static_cast<void*>(_ddata + dest_off), size, static_cast<off_t>(_offset + src_off), 0 );
-  }
-  if(nread != size){
-    try{
-      throw std::out_of_range("NumpyReader: file corruption, " + std::to_string(nread) + " bytes read, " + std::to_string(size) + " bytes expected." );
+  // set the device
+  if (_device.is_cuda()) cudaSetDevice(_device.index());
+  
+  // handle offsets and read sizes
+  int64_t nread;
+  off_t file_off = src_off;
+  off_t buff_off = dest_off;
+  while (size > 0) {
+    if (!_device.is_cuda()) {
+      nread = pread(_fd, _data + buff_off, size, _offset + file_off);
     }
-    catch(...){
-      _teptr = std::current_exception();
+    else {
+      nread = cuFileRead( _cf_handle, static_cast<void*>(_ddata + buff_off), size, static_cast<off_t>(_offset + file_off), 0 );
+    }
+
+    if (nread >= 0) {
+      // worked well, continue
+      size -= nread;
+      file_off += nread;
+      buff_off += nread;
+    }
+    else {
+      handleIOError(nread);
     }
   }
 }
@@ -326,13 +417,14 @@ void NumpyReader::readSample(int64_t dst_idx, int64_t src_idx){
   //size of data in file
   int64_t bsize = _numelem * _typesize;
   int64_t nth = ((bsize / _num_intra_threads) > 1 ? _num_intra_threads : 1);
-  int64_t chunksize = bsize / nth;
+  int64_t chunksize = std::ceil(bsize / nth);
   
   //dispatch loads
   std::vector<std::thread> pool;
   for(int64_t t_off = 0; t_off < bsize; t_off += chunksize){
-    int64_t size = ((t_off + chunksize) < bsize ? chunksize : (bsize - t_off));
-    pool.push_back(std::thread(&NumpyReader::readChunk, this, (bsize * dst_idx) + t_off, (bsize * src_idx) + t_off, size));
+    int64_t chunksize_eff = std::min(chunksize, bsize - t_off);
+    //int64_t size = ((t_off + chunksize) < bsize ? chunksize : (bsize - t_off));
+    pool.push_back(std::thread(&NumpyReader::readChunk, this, (bsize * dst_idx) + t_off, (bsize * src_idx) + t_off, chunksize_eff));
 
     if(pool.size() > _num_intra_threads){
       pool[0].join();
@@ -340,7 +432,7 @@ void NumpyReader::readSample(int64_t dst_idx, int64_t src_idx){
     }
   }
   
-  //wait for loads to complete
+  // wait for loads to complete
   for(unsigned int t=0; t < pool.size(); t++) pool[t].join();
 }
 
@@ -407,10 +499,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   npr.def_property_readonly("strides", [](const NumpyReader& numpyr) { return numpyr.getStrides(); });
 
   //properties
-  npr.def_property("num_inter_threads", [](const NumpyReader& numpyr) { return numpyr._num_inter_threads; }, 
-		                        [](NumpyReader& numpyr, const unsigned int& val) -> void { numpyr._num_inter_threads = val; });
-  npr.def_property("num_intra_threads", [](const NumpyReader& numpyr) { return numpyr._num_intra_threads; },
-                                        [](NumpyReader& numpyr, const unsigned int& val) -> void { numpyr._num_intra_threads = val; });
+  npr.def_property("num_inter_threads",
+		   [](const NumpyReader& numpyr) { return numpyr.GetInterThreads(); }, 
+		   [](NumpyReader& numpyr, const unsigned int& val) -> void { numpyr.SetInterThreads(val); });
+  
+  npr.def_property("num_intra_threads",
+		   [](const NumpyReader& numpyr) { return numpyr.GetIntraThreads(); },
+		   [](NumpyReader& numpyr, const unsigned int& val) -> void { numpyr.SetIntraThreads(val); });
+
   
   //accessors
   npr.def("set_batchsize", &NumpyReader::SetBatchsize, py::arg("batch_size"));
@@ -420,6 +516,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   npr.def("init_file", &NumpyReader::InitFile, py::arg("filename") );
   npr.def("finalize_file", &NumpyReader::FinalizeFile);
   npr.def("print_file_info", &NumpyReader::PrintHeaderInfo);
+  npr.def("enable_p2p", &NumpyReader::EnableP2P);
+  npr.def("disable_p2p", &NumpyReader::DisableP2P);
   
   //loader
   npr.def("get_sample", &NumpyReader::getSample, py::arg("element_id") );

@@ -6,9 +6,6 @@ import sys
 import torch
 import horovod.torch as hvd
 
-#test module
-import pytest
-
 #this is what we want to test
 import numpy_reader as nr
 

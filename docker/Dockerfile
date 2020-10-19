@@ -1,8 +1,6 @@
 #FROM gitlab-master.nvidia.com:5005/dl/dgx/pytorch:19.10-py3-devel
 FROM nvcr.io/nvidia/pytorch:20.09-py3
 
-ARG gds_version=20200220
-
 #Install gds system prereqs
 RUN apt-get update && apt-get install --assume-yes apt-utils \
     && apt-get install --assume-yes libudev-dev \
@@ -13,13 +11,14 @@ RUN apt-get update && apt-get install --assume-yes apt-utils \
     && apt-get install --assume-yes libssl-dev
 
 #install GDS
-COPY ./sys/gds-alpha-${gds_version}/lib/libcufile.so /usr/lib/x86_64-linux-gnu/
-COPY ./sys/gds-alpha-${gds_version}/lib/cufile.h /usr/include/
-ENV CUFILE_EXPERIMENTAL_FS 1
+COPY sys/gds_0.8.0_amd64.deb /tmp/gds_0.8.0_amd64.deb
+RUN dpkg --force-all -i /tmp/gds_0.8.0_amd64.deb && \
+    mv /usr/local/gds/lib/*.so /usr/lib/x86_64-linux-gnu/ && \
+    mv /usr/local/gds/lib/*.h /usr/include/x86_64-linux-gnu/
 
-#install GDS examples
-RUN mkdir -p /opt/gds_examples
-COPY ./sys/gds-alpha-${gds_version}/tools/samples /opt/gds_examples
+##install GDS examples
+#RUN mkdir -p /opt/gds_examples
+#COPY ./sys/gds-alpha-${gds_version}/tools/samples /opt/gds_examples
 
 #install mpi4py
 RUN pip install mpi4py
