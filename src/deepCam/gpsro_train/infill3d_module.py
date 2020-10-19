@@ -104,7 +104,7 @@ class Infill3d(object):
         n_input_channels = 1 + self.config["noise_dimensions"]
         n_output_channels = 1
         self.net = dxi.PConvUNet3d(input_channels = n_input_channels, output_channels = n_output_channels, 
-                                   normalizer = normalizer, layer_size = 6)
+                                   normalizer = normalizer, layer_size = 6, dropout_p = self.config["dropout_p"])
         #self.net = dxi.PartialEncoderDecoderDirectPadSmall(n_input_channels, n_output_channels, factor=1, use_oracle_design=False)
         self.net.to(self.device)
 

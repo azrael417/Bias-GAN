@@ -111,9 +111,32 @@ class PCBActiv3d(nn.Module):
             h = self.activation(h)
         return h, h_mask
 
+    
+class PCDropout3d(nn.Module):
+    def __init__(self, p):
+        super().__init__()
+        self.dropout = nn.Dropout3d(p = p)
+        self.scale = (1. - p)
 
+    def forward(self, input, mask):
+        if self.training:
+            # drop mask
+            mask_d = self.dropout(mask) * self.scale
+            # extract what got dropped
+            drop_vals = (mask - mask_d)
+            # drop input too
+            input_d = input
+            input_d[drop_vals > 0.] = 0.
+            input_d /= self.scale
+        else:
+            input_d = input
+            mask_d = mask
+        return input_d, mask_d
+
+    
 class PConvUNet3d(nn.Module):
-    def __init__(self, layer_size=7, input_channels=3, output_channels=3, upsampling_mode='nearest', normalizer=nn.BatchNorm3d):
+    def __init__(self, layer_size=7, input_channels=3, output_channels=3,
+                 upsampling_mode='nearest', normalizer=nn.BatchNorm3d, dropout_p = 0.):
         super().__init__()
         self.freeze_enc_bn = False
         self.upsampling_mode = upsampling_mode
@@ -134,6 +157,9 @@ class PConvUNet3d(nn.Module):
         self.dec_2 = PCBActiv3d(128 + 64, 64, activ='leaky', normalizer=normalizer)
         self.dec_1 = PCBActiv3d(64 + input_channels, 32, activ='leaky', normalizer=normalizer)
 
+        # dropout
+        self.dropout = PCDropout3d(p = dropout_p) if dropout_p > 0. else None
+        
         # for 1x1 resolution
         self.last_conv = PCBActiv3d(32, output_channels, activ=None, normalizer=None,
                                     sample='point-1', conv_bias=True)
@@ -164,8 +190,16 @@ class PConvUNet3d(nn.Module):
         for i in range(1, self.layer_size + 1):
             l_key = 'enc_{:d}'.format(i)
             h_key = 'h_{:d}'.format(i)
+
+            # conv
             h_dict[h_key], h_mask_dict[h_key] = getattr(self, l_key)(
                 h_dict[h_key_prev], h_mask_dict[h_key_prev])
+            
+            # dropout
+            if self.dropout is not None:
+                h_dict[h_key], h_mask_dict[h_key] = self.dropout(h_dict[h_key], h_mask_dict[h_key])
+
+            # continue
             h_key_prev = h_key
 
         h_key = 'h_{:d}'.format(self.layer_size)
@@ -190,7 +224,13 @@ class PConvUNet3d(nn.Module):
             
             h = torch.cat([h, h_dict[enc_h_key]], dim=1)
             h_mask = torch.cat([h_mask, h_mask_dict[enc_h_key]], dim=1)
+
+            # conv
             h, h_mask = getattr(self, dec_l_key)(h, h_mask)
+
+            # dropout
+            if self.dropout is not None:
+                h, h_mask = self.dropout(h, h_mask)
 
         # required for 1x1 resolution
         #hin, hin_mask = self.input_enc_1(input, input_mask)
