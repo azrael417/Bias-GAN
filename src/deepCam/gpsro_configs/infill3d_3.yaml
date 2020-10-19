@@ -6,18 +6,19 @@ default: &DEFAULT
   checkpoint: ""
 
   noise_dimensions: 0
-  noise_type: "Uniform"
+  noise_type: "Normal"
   layer_normalization: "batch_norm"
   loss_type: "l2"
   loss_weights: {"valid": 1.0, "hole": 0.5, "tv": 0.}
+  dropout_p: 0.2
 
   optimizer: "AdamW"
-  weight_decay: 0.01
-  start_lr: 0.0001
-  max_steps: 30000
+  weight_decay: 0.007661
+  start_lr: 0.00496
+  max_steps: 15000
   local_batch_size: 16
   adam_eps: 1E-8
-  lr_schedule: {"type": "multistep", "milestones": [10000], "decay_rate": 0.1}
+  lr_schedule: {"type": "cosine_annealing", "t_max": 1000, "eta_min": 0}
 
   validation_frequency: 100
   training_visualization_frequency: 200

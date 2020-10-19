@@ -73,10 +73,11 @@ def main(pargs):
     ray.init()
         
     # override config
-    tune_config = {'batch_size':  hp.choice('batch_size', [4, 8, 16, 32]),
+    tune_config = {'local_batch_size':  hp.choice('local_batch_size', [2, 4, 8, 16, 32]),
                    'start_lr': hp.loguniform('start_lr', np.log(1e-6), np.log(1e-1)),
                    'weight_decay': hp.loguniform('weight_decay', np.log(0.001), np.log(1.)),
                    'layer_normalization': hp.choice('layer_normalization', ["instance_norm", "batch_norm"]),
+                   'dropout_p': hp.uniform('dropout_p', 0., 0.5),
                    'lr_schedule': hp.choice('lr_schedule', [
                        {"type": "multistep", "milestones": [5000], "decay_rate": 0.1},
                        {"type": "multistep", "milestones": [10000], "decay_rate": 0.1},
@@ -91,10 +92,11 @@ def main(pargs):
     tune_kwargs = {'num_samples': 100,
                    'config': config}
 
-    current_best_params = [{"batch_size": 2, 
+    current_best_params = [{"local_batch_size": 3, 
                             "start_lr": 0.00303, 
                             'lr_schedule': 2, 
-                            "weight_decay": 0.01, 
+                            "weight_decay": 0.01,
+                            "dropout_p": 0.,
                             'layer_normalization': 1}]
     
     # create scheduler and search
