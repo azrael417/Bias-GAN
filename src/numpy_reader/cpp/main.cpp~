@@ -1,9 +1,0 @@
-#include "numpy_reader.h"
-
-int main(int argc, char* argv[]){
-	
-	NumpyReader npr("../tests/arr2.npy");
-	npr.Read();
-	
-	return 0;
-}
