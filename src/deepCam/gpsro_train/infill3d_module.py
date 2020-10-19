@@ -32,7 +32,6 @@ from PIL import Image
 
 #apex and AMP
 import torch.cuda.amp as amp
-import apex.optimizers as aoptim
 
 #horovod
 #import horovod.torch as hvd
@@ -170,7 +169,9 @@ class Infill3d(object):
                                        num_intra_threads = self.config["max_intra_threads"],
                                        read_device = torch.device("cpu") if not self.config["enable_gds"] else self.device,
                                        send_device = self.device)
-        self.train_loader = DataLoader(train_set, self.config["local_batch_size"], drop_last=True)
+        self.train_loader = DataLoader(train_set, self.config["local_batch_size"],
+                                       drop_last = True,
+                                       pin_memory = not self.config["enable_gds"])
     
         # validation
         validation_dir = os.path.join(root_dir, "validation")
@@ -184,7 +185,9 @@ class Infill3d(object):
                                             num_intra_threads = self.config["max_intra_threads"],
                                             read_device = torch.device("cpu") if not self.config["enable_gds"] else self.device,
                                             send_device = self.device)
-        self.validation_loader = DataLoader(validation_set, self.config["local_batch_size"], drop_last=True)
+        self.validation_loader = DataLoader(validation_set, self.config["local_batch_size"],
+                                            drop_last = True,
+                                            pin_memory = not self.config["enable_gds"])
                                    
         # visualizer
         self.gpviz = gp.GPSROVisualizer(statsfile = os.path.join(root_dir, 'stats3d.npz'),
