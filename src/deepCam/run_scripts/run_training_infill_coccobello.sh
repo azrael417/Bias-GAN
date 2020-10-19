@@ -14,7 +14,8 @@ export OMPI_MCA_btl=^openib
 export CUDA_VISIBLE_DEVICES=1
 
 #total number of ranks
-config_name="infill3d_hpo.yaml"
+config_name="infill3d_3.yaml"
+run_tag="infill3d_dropout_test1"
 
 #mpi options
 mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
@@ -29,5 +30,6 @@ mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
 #wandb agent "tkurth/GPSRO bias correction/mmysm2ms"
 
 # manual runs
-mpirun -np ${totalranks} ${mpioptions} python ../gpsro_train/hpo_infill3d.py \
+mpirun -np ${totalranks} ${mpioptions} python ../gpsro_train/train_infill3d.py \
+       --run_tag ${run_tag} \
        --config_file "../gpsro_configs/${config_name}"
