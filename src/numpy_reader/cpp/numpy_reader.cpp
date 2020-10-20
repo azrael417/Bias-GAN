@@ -312,7 +312,7 @@ void NumpyReader::registerBuffer(){
       // register
       _cf_status = cuFileBufRegister(ptr, chunksize_eff, 0);
       if( _cf_status.err != CU_FILE_SUCCESS ){
-	throw std::runtime_error("NumpyReader: failed to register device buffer.");
+        throw std::runtime_error("NumpyReader: failed to register device buffer.");
       }
 
       // memorize registered buffer data
@@ -387,10 +387,10 @@ void NumpyReader::readChunk(int64_t dest_off, int64_t src_off, int64_t size){
   off_t file_off = src_off;
   off_t buff_off = dest_off;
   while (size > 0) {
+    //std::cout << "SIZE: " << size << " file_off: " << file_off << " buff_off: " << buff_off << std::endl;
     if (!_device.is_cuda()) {
       nread = pread(_fd, _data + buff_off, size, _offset + file_off);
-    }
-    else {
+    } else {
       nread = cuFileRead( _cf_handle, static_cast<void*>(_ddata + buff_off), size, static_cast<off_t>(_offset + file_off), 0 );
     }
 
@@ -399,9 +399,9 @@ void NumpyReader::readChunk(int64_t dest_off, int64_t src_off, int64_t size){
       size -= nread;
       file_off += nread;
       buff_off += nread;
-    }
-    else {
+    } else {
       handleIOError(nread);
+      return;
     }
   }
 }
@@ -423,6 +423,9 @@ void NumpyReader::readSample(int64_t dst_idx, int64_t src_idx){
   std::vector<std::thread> pool;
   for(int64_t t_off = 0; t_off < bsize; t_off += chunksize){
     int64_t chunksize_eff = std::min(chunksize, bsize - t_off);
+    
+    //std::cout << "chunksize: " << chunksize << " chunksize_eff: " << chunksize_eff << " bsize: " << bsize << " t_off: " << t_off << std::endl;
+    
     //int64_t size = ((t_off + chunksize) < bsize ? chunksize : (bsize - t_off));
     pool.push_back(std::thread(&NumpyReader::readChunk, this, (bsize * dst_idx) + t_off, (bsize * src_idx) + t_off, chunksize_eff));
 
