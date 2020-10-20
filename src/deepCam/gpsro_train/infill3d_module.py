@@ -170,8 +170,7 @@ class Infill3d(object):
                                        read_device = torch.device("cpu") if not self.config["enable_gds"] else self.device,
                                        send_device = self.device)
         self.train_loader = DataLoader(train_set, self.config["local_batch_size"],
-                                       drop_last = True,
-                                       pin_memory = not self.config["enable_gds"])
+                                       drop_last = True)
     
         # validation
         validation_dir = os.path.join(root_dir, "validation")
@@ -186,19 +185,18 @@ class Infill3d(object):
                                             read_device = torch.device("cpu") if not self.config["enable_gds"] else self.device,
                                             send_device = self.device)
         self.validation_loader = DataLoader(validation_set, self.config["local_batch_size"],
-                                            drop_last = True,
-                                            pin_memory = not self.config["enable_gds"])
+                                            drop_last = True)
                                    
         # visualizer
         self.gpviz = gp.GPSROVisualizer(statsfile = os.path.join(root_dir, 'stats3d.npz'),
-                                       channels = self.config["channels"],
-                                       normalize = True,
-                                       normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance")
+                                        channels = self.config["channels"],
+                                        normalize = True,
+                                        normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance")
 
         # postprocessing
         self.pproc = pp.GPSROPostprocessor(statsfile = os.path.join(root_dir, 'stats3d.npz'),
-                                          channels = self.config["channels"],
-                                          normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance")
+                                           channels = self.config["channels"],
+                                           normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance")
 
         # some metrics we want to keep track of
         self.validation_losses = []
