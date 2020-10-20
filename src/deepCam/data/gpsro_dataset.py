@@ -70,7 +70,7 @@ class GPSRODataset(Dataset):
         self.npr_label.num_intra_threads = num_intra_threads
         self.npr_label.parse(label_filename)
         #masks
-        if self.masks:
+        if self.masks is not None:
             mask_filename = os.path.join(self.source, "masks_"+self.files[0])
             self.npr_mask = nr.numpy_reader(split_axis = False, device = devindex)
             self.npr_mask.num_intra_threads = num_intra_threads
@@ -132,7 +132,7 @@ class GPSRODataset(Dataset):
         label = self.npr_label.get_sample(0)
 
         #masks
-        if self.masks:
+        if self.masks is not None:
             mask_file = os.path.realpath(os.path.join(self.source, "masks_" + self.files[idx]))
             self.npr_mask.init_file(mask_file)
             mask = self.npr_mask.get_sample(0)
