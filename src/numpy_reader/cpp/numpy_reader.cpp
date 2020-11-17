@@ -1,3 +1,17 @@
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "numpy_reader.h"
 
 void NumpyReader::EnableP2P(){
@@ -8,14 +22,14 @@ void NumpyReader::EnableP2P(){
     for (int k = 0; k < _num_gpu; k++) {
       cudaSetDevice(k);
       for (int j = k+1; j < _num_gpu; j++) {
-	int access = 0;
-	cudaDeviceCanAccessPeer(&access, k, j);
-	if (access) {
-	  cudaDeviceEnablePeerAccess(j, 0 );
-	  cudaSetDevice(j);
-	  cudaDeviceEnablePeerAccess(k, 0 );
-	  cudaSetDevice(k);
-	}
+        int access = 0;
+        cudaDeviceCanAccessPeer(&access, k, j);
+        if (access) {
+          cudaDeviceEnablePeerAccess(j, 0 );
+          cudaSetDevice(j);
+          cudaDeviceEnablePeerAccess(k, 0 );
+          cudaSetDevice(k);
+        }
       }
     }
     _p2p_enabled = true;
@@ -27,14 +41,14 @@ void NumpyReader::DisableP2P(){
     for (int k = 0; k < _num_gpu; k++) {
       cudaSetDevice(k);
       for (int j = k+1; j < _num_gpu; j++) {
-	int access = 0;
-	cudaDeviceCanAccessPeer(&access, k, j);
-	if (access) {
-	  cudaDeviceDisablePeerAccess(j);
-	  cudaSetDevice(j);
-	  cudaDeviceDisablePeerAccess(k);
-	  cudaSetDevice(k);
-	}
+        int access = 0;
+        cudaDeviceCanAccessPeer(&access, k, j);
+        if (access) {
+          cudaDeviceDisablePeerAccess(j);
+          cudaSetDevice(j);
+          cudaDeviceDisablePeerAccess(k);
+          cudaSetDevice(k);
+        }
       }
     }
     _p2p_enabled = false;
@@ -51,7 +65,8 @@ void NumpyReader::ParseFile(const std::string& filename){
   //open file
   _fd = open(filename.c_str(), O_RDONLY);
   if(_fd == -1){
-    throw std::runtime_error("NumpyReader: failed to open file " + filename);
+    handleIOError(_fd);
+    std::rethrow_exception(_teptr);
   }
   
   //check if the file is actually a numpy file
@@ -234,7 +249,10 @@ void NumpyReader::SetBatchsize(const unsigned int& batch_size){
 void NumpyReader::allocate(){
 
   //cpu data
-  if(_data != nullptr) delete [] _data;
+  if(_data != nullptr){
+    delete [] _data;
+    _data = nullptr;
+  }
 
   //gpu data
   if(_ddata != nullptr){
@@ -244,6 +262,7 @@ void NumpyReader::allocate(){
     
     //free buffer
     cudaFree(_ddata);
+    _ddata = nullptr;
   }
   
   //recompute sizes
@@ -288,11 +307,9 @@ void NumpyReader::allocate(){
 
 void NumpyReader::deregisterBuffer(){
   //de-register dev buffer
-  for(size_t i = 0; i < _reg_buff.size(); ++i){
-    _cf_status = cuFileBufDeregister(_reg_buff[i].first);
-    if( _cf_status.err != CU_FILE_SUCCESS ){
-      throw std::runtime_error("NumpyReader: failed to de-register device buffer.");
-    }
+  for(size_t i = 0; i < _reg_buff.size(); ++i) {
+    auto ptr = _reg_buff[i].first;
+    cuFileBufDeregister(ptr);
   }
   _reg_buff.clear();
 }
@@ -329,7 +346,13 @@ void NumpyReader::InitFile(const std::string& filename){
   }
   else{
     _fd = open(filename.c_str(), O_RDONLY|O_DIRECT);
+  }
+  if(_fd == -1){
+    handleIOError(_fd);
+    std::rethrow_exception(_teptr);
+  }
     
+  if( _device.is_cuda() ){
     //set up cufile stuff
     _cf_descr.handle.fd = _fd;
     _cf_descr.fs_ops = nullptr;
@@ -387,10 +410,10 @@ void NumpyReader::readChunk(int64_t dest_off, int64_t src_off, int64_t size){
   off_t file_off = src_off;
   off_t buff_off = dest_off;
   while (size > 0) {
-    //std::cout << "SIZE: " << size << " file_off: " << file_off << " buff_off: " << buff_off << std::endl;
     if (!_device.is_cuda()) {
       nread = pread(_fd, _data + buff_off, size, _offset + file_off);
-    } else {
+    }
+    else {
       nread = cuFileRead( _cf_handle, static_cast<void*>(_ddata + buff_off), size, static_cast<off_t>(_offset + file_off), 0 );
     }
 
@@ -399,7 +422,8 @@ void NumpyReader::readChunk(int64_t dest_off, int64_t src_off, int64_t size){
       size -= nread;
       file_off += nread;
       buff_off += nread;
-    } else {
+    }
+    else {
       handleIOError(nread);
       return;
     }
@@ -420,23 +444,14 @@ void NumpyReader::readSample(int64_t dst_idx, int64_t src_idx){
   int64_t chunksize = std::ceil(bsize / nth);
   
   //dispatch loads
-  std::vector<std::thread> pool;
   for(int64_t t_off = 0; t_off < bsize; t_off += chunksize){
     int64_t chunksize_eff = std::min(chunksize, bsize - t_off);
-    
-    //std::cout << "chunksize: " << chunksize << " chunksize_eff: " << chunksize_eff << " bsize: " << bsize << " t_off: " << t_off << std::endl;
-    
-    //int64_t size = ((t_off + chunksize) < bsize ? chunksize : (bsize - t_off));
-    pool.push_back(std::thread(&NumpyReader::readChunk, this, (bsize * dst_idx) + t_off, (bsize * src_idx) + t_off, chunksize_eff));
-
-    if(pool.size() > _num_intra_threads){
-      pool[0].join();
-      pool.erase(pool.begin());
-    }
+    int64_t dst_off = (bsize * dst_idx) + t_off;
+    int64_t src_off = (bsize * src_idx) + t_off;
+    _thread_pool->AddWork([this, dst_off, src_off, chunksize_eff](int thread_id){
+	readChunk(dst_off, src_off, chunksize_eff);
+      });
   }
-  
-  // wait for loads to complete
-  for(unsigned int t=0; t < pool.size(); t++) pool[t].join();
 }
 
 
@@ -449,6 +464,7 @@ torch::Tensor NumpyReader::getSample(int64_t idx){
   
   //read one sample from id idx into batch 0
   readSample(0, idx);
+  _thread_pool->RunAll(true);
   
   //check for exceptions
   if(_teptr){
@@ -467,17 +483,10 @@ torch::Tensor NumpyReader::getBatch(const std::vector<int64_t>& indices){
   }
   
   //dispatch loads
-  std::vector<std::thread> pool;
   for(unsigned int idx = 0; idx < _batchsize; idx++){
-    pool.push_back(std::thread(&NumpyReader::readSample, this, idx, indices[idx]));
-    
-    if(pool.size() > _num_inter_threads){
-      pool[0].join();
-      pool.erase(pool.begin());
-    }
+    readSample(idx, indices[idx]);
   }
-  //wait for loads to complete
-  for(unsigned int t=0; t < pool.size(); t++) pool[t].join();
+  _thread_pool->RunAll(true);
   
   //check for exceptions
   if(_teptr){
@@ -510,7 +519,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 		   [](const NumpyReader& numpyr) { return numpyr.GetIntraThreads(); },
 		   [](NumpyReader& numpyr, const unsigned int& val) -> void { numpyr.SetIntraThreads(val); });
 
-  
   //accessors
   npr.def("set_batchsize", &NumpyReader::SetBatchsize, py::arg("batch_size"));
   

@@ -69,10 +69,21 @@ class Infill3d(object):
 
         # init config and wandb:
         if "run_tag" in config.keys():
-            wandb.init(project = 'GPSRO bias correction', config = config, name = config["run_tag"], id = config["run_tag"])
+            # check if we have a group tag
+            if "group_tag" in config.keys():
+                wandb.init(project = 'GPSRO bias correction',
+                           group = config["group_tag"], config = config,
+                           name = config["run_tag"], id = config["run_tag"])
+            else:
+                wandb.init(project = 'GPSRO bias correction', config = config,
+                           name = config["run_tag"], id = config["run_tag"])
         else:
-            wandb.init(project = 'GPSRO bias correction', config = config)
-        
+            # check if we have a group tag
+            if "group_tag" in config.keys():
+                wandb.init(project = 'GPSRO bias correction', group = config["group_tag"], config = config)
+            else:
+                wandb.init(project = 'GPSRO bias correction', config = config)
+                
         # extract config
         self.config = wandb.config
         
