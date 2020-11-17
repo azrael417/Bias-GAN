@@ -1,3 +1,17 @@
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef __NUMPY_READER_H__
 #define __NUMPY_READER_H__
 
@@ -28,6 +42,7 @@
 
 //threading
 #include <thread>
+#include "thread_pool.h"
 
 //exception handling
 #include <exception>
@@ -42,6 +57,7 @@ public:
     _split_axis(split_axis),
     _num_inter_threads(1),
     _num_intra_threads(1),
+    _thread_pool(nullptr),
     _fortran_order(false),
     _little_endian(true),
     _numsample(0),
@@ -51,8 +67,7 @@ public:
     _data(nullptr),
     _ddata(nullptr),
     _p2p_enabled(false),
-    _teptr(nullptr)
-		 {
+    _teptr(nullptr) {
        //set up typemap
        _typemap = {
            {"i8", torch::kInt64},
@@ -74,25 +89,48 @@ public:
            throw std::runtime_error("NumpyReader: cuFile driver failed to open");
          }
        }
-		 }
+
+       // init pools
+       InitThreadPool();
+    }
      
   ~NumpyReader(){
-    if(_data != nullptr) delete [] _data;
+    if(_data != nullptr){
+      delete [] _data;
+      _data = nullptr;
+    }
     if(_ddata != nullptr){
       //deregister buffer
       deregisterBuffer();
       
       //free buffer
       cudaFree(_ddata);
+      _ddata = nullptr;
     }
     if( _device.is_cuda() ){
       cuFileDriverClose();
     }
+
+    // destroy thread pool
+    FinalizeThreadPool();
   }
   
   //set batch size:
   void SetBatchsize(const unsigned int& batch_size);
 
+  //init thread pools
+  void InitThreadPool(){
+    FinalizeThreadPool();
+    _thread_pool = new ThreadPool(static_cast<int>(_num_intra_threads * _num_inter_threads), _device.index(), false);
+  }
+
+  void FinalizeThreadPool(){
+    if(_thread_pool != nullptr){
+      delete _thread_pool;
+      _thread_pool = nullptr;
+    }
+  }
+  
   //set and get threads
   void SetIntraThreads(const unsigned int& num_threads){
     if (_num_intra_threads != num_threads) {
@@ -104,6 +142,9 @@ public:
 	registerBuffer();
       }
     }
+
+    // init thread pool
+    InitThreadPool();
   }
   
   unsigned int GetIntraThreads() const {
@@ -112,6 +153,9 @@ public:
   
   void SetInterThreads(const unsigned int& num_threads) {
     _num_inter_threads = num_threads;
+
+    // init thread pool
+    InitThreadPool();
   }
   
   unsigned int GetInterThreads() const {
@@ -165,6 +209,7 @@ private:
   //threads
   unsigned int _num_inter_threads;
   unsigned int _num_intra_threads;
+  ThreadPool* _thread_pool;
   
   //other variables
   int _fd;
