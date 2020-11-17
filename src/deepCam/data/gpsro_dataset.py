@@ -125,17 +125,20 @@ class GPSRODataset(Dataset):
         data_file = os.path.realpath(os.path.join(self.source, "data_in_" + self.files[idx]))
         self.npr_data.init_file(data_file)
         data = self.npr_data.get_sample(0)
+        self.npr_data.finalize_file()
         
         #label
         label_file = os.path.realpath(os.path.join(self.source, "data_out_" + self.files[idx]))
         self.npr_label.init_file(label_file)
         label = self.npr_label.get_sample(0)
+        self.npr_label.finalize_file()
 
         #masks
         if self.masks is not None:
             mask_file = os.path.realpath(os.path.join(self.source, "masks_" + self.files[idx]))
             self.npr_mask.init_file(mask_file)
             mask = self.npr_mask.get_sample(0)
+            self.npr_mask.finalize_file()
         
         #upload if necessary
         if (data.device != self.send_device):

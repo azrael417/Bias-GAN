@@ -14,7 +14,7 @@ export OMPI_MCA_btl=^openib
 export CUDA_VISIBLE_DEVICES=1
 
 #total number of ranks
-config_name="infill3d_hpo.yaml"
+config_name="infill3d_hpo_2.yaml"
 
 #mpi options
 mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"

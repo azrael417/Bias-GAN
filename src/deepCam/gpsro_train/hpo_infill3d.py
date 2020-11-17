@@ -69,6 +69,9 @@ def main(pargs):
     if pargs.run_tag is not None:
         config["run_tag"] = pargs.run_tag
 
+    if pargs.group_tag is not None:
+        config["group_tag"] = pargs.group_tag
+
     # init ray
     ray.init()
         
