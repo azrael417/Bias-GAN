@@ -35,7 +35,6 @@ import torch.cuda.amp as amp
 import apex.optimizers as aoptim
 
 #horovod
-#import horovod.torch as hvd
 from comm.distributed import comm as distcomm
 
 class Regression3d(object):
