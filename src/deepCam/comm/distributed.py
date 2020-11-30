@@ -155,7 +155,42 @@ class comm(object):
             
         #we need to return the steps because they are immutable
         return start_step, start_epoch
+    
+    
+    def init_aae_training_state(self, emodel, gmodel, dmodel, gopt, dopt, checkpoint_name, device_id):
+        #restart from checkpoint if desired
+        if (checkpoint_name is not None) and (os.path.isfile(checkpoint_name)):
+            checkpoint = torch.load(checkpoint_name, map_location = device_id)
+            start_step = checkpoint['step']
+            start_epoch = checkpoint['epoch']
 
+            # Optimizer
+            gopt.load_state_dict(checkpoint['g_opt'])
+            dopt.load_state_dict(checkpoint['d_opt'])
+            
+            # we need to tweak the keys a bit:
+            # encoder
+            model = {}
+            for k in checkpoint['encoder']:
+                model[k.replace("module.","")] = checkpoint['encoder'][k]
+            emodel.load_state_dict(model)
+            # generator
+            model = {}
+            for k in checkpoint['generator']:
+                model[k.replace("module.","")] = checkpoint['generator'][k]
+            gmodel.load_state_dict(model)
+            # discriminator
+            model = {}
+            for	k in checkpoint['discriminator']:
+                model[k.replace("module.","")] = checkpoint['discriminator'][k]
+            dmodel.load_state_dict(model)
+        else:
+            start_step = 0
+            start_epoch = 0
+            
+        #we need to return the steps because they are immutable
+        return start_step, start_epoch
+    
     
     def DistributedModel(self, model):
         if dist.is_available() and dist.is_initialized():
