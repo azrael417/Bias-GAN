@@ -14,8 +14,9 @@ export OMPI_MCA_btl=^openib
 export CUDA_VISIBLE_DEVICES=1
 
 #total number of ranks
-config_name="infill3d_3.yaml"
-run_tag="infill3d_dropout_test1"
+config_name="infill3d_hires_1.yaml"
+run_tag="infill3d_hires_test1"
+group_tag="hires_hpo"
 
 #mpi options
 mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
@@ -32,4 +33,5 @@ mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
 # manual runs
 mpirun -np ${totalranks} ${mpioptions} python ../gpsro_train/train_infill3d.py \
        --run_tag ${run_tag} \
+       --group_tag ${group_tag} \
        --config_file "../gpsro_configs/${config_name}"

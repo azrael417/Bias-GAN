@@ -65,7 +65,7 @@ overwrite = False
 use_weights = False
 use_3d = True
 data_format = "nchw"
-data_path_prefix = "/data/gpsro_data4_interp/train"
+data_path_prefix = "/data/gpsro_data_hires"
 output_name = "stats3d.npz"
 
 #init token

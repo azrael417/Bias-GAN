@@ -10,13 +10,24 @@ default: &DEFAULT
   layer_normalization: "batch_norm"
   loss_type: "l2"
   loss_weights: {"valid": 1.0, "hole": 0.5, "tv": 0.}
-  dropout_p: 0.
+  dropout_p:
+    min: 0.
+    max: 0.5
 
   optimizer: "AdamW"
-  weight_decay: 0.01
-  start_lr: 0.0001
+  weight_decay:
+    min: 0.001
+    max: 1.
+  start_lr:
+    min: 1E-6
+    max: 1E-1
   max_steps: 30000
-  local_batch_size: 16
+  local_batch_size:
+    - 2
+    - 4
+    - 8
+    - 16
+    - 32	
   adam_eps: 1E-8
   lr_schedule: {"type": "multistep", "milestones": [10000], "decay_rate": 0.1}
 
