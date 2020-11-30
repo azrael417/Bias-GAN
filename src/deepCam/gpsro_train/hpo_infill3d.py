@@ -72,27 +72,32 @@ def main(pargs):
     if pargs.group_tag is not None:
         config["group_tag"] = pargs.group_tag
 
+    # get wandb api token
+    with open("/certs/.wandbirc_gpsro") as f:
+        wbtoken = f.readlines()[0].replace("\n","")
+
+    # add wandb info 
+    config["wandb"] = {"project": "GPSRO bias correction",
+                       "api_key": wbtoken,
+                       "monitor_gym": False}
+    
     # init ray
     ray.init()
-        
+    
     # override config
-    tune_config = {'local_batch_size':  hp.choice('local_batch_size', [2, 4, 8, 16, 32]),
-                   'start_lr': hp.loguniform('start_lr', np.log(1e-6), np.log(1e-1)),
-                   'weight_decay': hp.loguniform('weight_decay', np.log(0.001), np.log(1.)),
+    tune_config = {'local_batch_size':  hp.choice('local_batch_size', config['local_batch_size']),
+                   'start_lr': hp.loguniform('start_lr', np.log(config['start_lr']['min']), np.log(config['start_lr']['max'])),
+                   'weight_decay': hp.loguniform('weight_decay', np.log(config['weight_decay']['min']), np.log(config['weight_decay']['max'])),
                    'layer_normalization': hp.choice('layer_normalization', ["instance_norm", "batch_norm"]),
-                   'dropout_p': hp.uniform('dropout_p', 0., 0.5),
-                   'lr_schedule': hp.choice('lr_schedule', [
-                       {"type": "multistep", "milestones": [5000], "decay_rate": 0.1},
-                       {"type": "multistep", "milestones": [10000], "decay_rate": 0.1},
-                       {"type": "cosine_annealing", "t_max": 500, "eta_min": 0},
-                       {"type": "cosine_annealing", "t_max": 1000, "eta_min": 0}])
+                   'dropout_p': hp.uniform('dropout_p', config['dropout_p']['min'], config['dropout_p']['max']),
+                   'lr_schedule': hp.choice('lr_schedule', config['lr_schedule'])
     }
 
     # update config:
     for key in tune_config.keys():
         config[key] = tune_config[key]
         
-    tune_kwargs = {'num_samples': 100,
+    tune_kwargs = {'num_samples': config["num_trials"],
                    'config': config}
 
     current_best_params = [{"local_batch_size": 3, 
@@ -105,13 +110,13 @@ def main(pargs):
     # create scheduler and search
     #scheduler = AsyncHyperBandScheduler()
     algo = HyperOptSearch(config, points_to_evaluate = current_best_params, metric='validation_loss', mode='min')
-    algo = ConcurrencyLimiter(algo, max_concurrent=1)
+    algo = ConcurrencyLimiter(algo, max_concurrent=config["max_concurrent_trials"])
     
     # run the training
     tune.run(train_wrapper,
              loggers=[WandbLogger],
              resources_per_trial={'gpu': 1},
-             num_samples=20,
+             num_samples=config["num_trials"],
              search_alg=algo)
 
     # goodbye
@@ -124,6 +129,7 @@ if __name__ == "__main__":
     AP.add_argument("--checkpoint", type=str, default=None, help="Checkpoint file to restart training from.")
     AP.add_argument("--config_file", type=str, default=None, help="YAML file to read config data from. If none specified, use WandB")
     AP.add_argument("--run_tag", type=str, default=None, help="A tag to identify the run")
+    AP.add_argument("--group_tag", type=str, default=None, help="A tag to group runs")
     pargs, _ = AP.parse_known_args()
     
     #run the stuff
