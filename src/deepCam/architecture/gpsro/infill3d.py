@@ -120,13 +120,13 @@ class PCDropout3d(nn.Module):
 
     def forward(self, input, mask):
         if self.training:
-            # drop mask
-            mask_d = self.dropout(mask) * self.scale
+            # drop mask: be safe here, better round
+            mask_d = torch.round(self.dropout(mask) * self.scale)
             # extract what got dropped
             drop_vals = (mask - mask_d)
             # drop input too
-            input_d = input
-            input_d[drop_vals > 0.] = 0.
+            input_d = input * (1. - drop_vals)
+            #input_d[drop_vals > 0.] = 0.
             input_d /= self.scale
         else:
             input_d = input

@@ -285,8 +285,8 @@ class Infill3d(object):
                 if (step % self.config["training_visualization_frequency"] == 0) and (self.comm.rank() == 0):
                     sample_idx = np.random.randint(low=0, high=label.shape[0])
                     plotname = os.path.join(self.output_dir, "plot_train_step{}_sampleid{}.png".format(step, sample_idx))
-                    prediction = outputs.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
-                    groundtruth = label.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
+                    prediction = outputs[sample_idx, 0, ...].cpu().detach().numpy().astype(np.float32)
+                    groundtruth = label[sample_idx, 0, ...].cpu().detach().numpy().astype(np.float32)
                     self.gpviz.visualize_prediction(plotname, prediction, groundtruth)
                 
                     #log if requested
@@ -388,8 +388,8 @@ class Infill3d(object):
                 if (step_val % self.config["validation_visualization_frequency"] == 0) and (self.comm.rank() == 0):
                     sample_idx = np.random.randint(low=0, high=label_val.shape[0])
                     plotname = os.path.join(self.output_dir, "plot_validation_step{}_valstep{}_sampleid{}.png".format(step,step_val,sample_idx))
-                    prediction_val = outputs_val.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
-                    groundtruth_val = label_val.detach()[sample_idx, 0, ...].cpu().numpy().astype(np.float32)
+                    prediction_val = outputs_val[sample_idx, 0, ...].cpu().detach().numpy().astype(np.float32)
+                    groundtruth_val = label_val[sample_idx, 0, ...].cpu().detach().numpy().astype(np.float32)
                     self.gpviz.visualize_prediction(plotname, prediction_val, groundtruth_val)
                 
                     #log if requested

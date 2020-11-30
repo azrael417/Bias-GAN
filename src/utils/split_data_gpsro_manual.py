@@ -14,7 +14,7 @@ bin_length = 10
 seed = 13476251
 #data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
 #data_path_prefix = "/data1/gpsro_data3_interp"
-data_path_prefix = "/data/gpsro_data4_interp/train"
+data_path_prefix = "/data/gpsro_data_hires"
 
 #init rng
 rng = np.random.RandomState(seed)
