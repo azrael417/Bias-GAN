@@ -10,14 +10,11 @@ RUN apt-get update && apt-get install --assume-yes apt-utils \
     && apt-get install --assume-yes libssl-dev
 
 #install GDS
-COPY sys/gds_0.8.0_amd64.deb /tmp/gds_0.8.0_amd64.deb
-RUN dpkg --force-all -i /tmp/gds_0.8.0_amd64.deb && \
-    mv /usr/local/gds/lib/*.so /usr/lib/x86_64-linux-gnu/ && \
-    mv /usr/local/gds/lib/*.h /usr/include/x86_64-linux-gnu/
-
-##install GDS examples
-#RUN mkdir -p /opt/gds_examples
-#COPY ./sys/gds-alpha-${gds_version}/tools/samples /opt/gds_examples
+COPY sys/gds_0.9.0_amd64.deb /tmp/gds.deb
+     RUN dpkg -i --force-depends /tmp/gds.deb && \
+     cp /usr/local/gds/lib/cufile.h /usr/local/cuda/include/ && \
+     cp -d /usr/local/gds/lib/libcufile*.so* /usr/local/cuda/lib64/ && \
+     rm /tmp/gds.deb
 
 #install mpi4py
 RUN pip install mpi4py
