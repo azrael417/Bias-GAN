@@ -54,7 +54,7 @@ nraid = 4
 overwrite = True
 use_weights = False
 data_format = "nchw"
-data_path_prefix = "/data/gpsro_data4_interp/train"
+data_path_prefix = "/data/gpsro_data_hires"
 
 #init token
 data_token = None
