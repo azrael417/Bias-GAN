@@ -43,12 +43,17 @@ def main(pargs):
     # add run tag if requested
     if pargs.run_tag is not None:
         config["run_tag"] = pargs.run_tag
+
+    # add group tag if requested
+    if pargs.group_tag is not None:
+        config["group_tag"] = pargs.group_tag
         
     # initialize model
     r3d = Regression3d(config)
     
     # train
     r3d.train()    
+
 
 if __name__ == "__main__":
 
@@ -57,6 +62,7 @@ if __name__ == "__main__":
     AP.add_argument("--checkpoint", type=str, default=None, help="Checkpoint file to restart training from.")
     AP.add_argument("--config_file", type=str, default=None, help="YAML file to read config data from. If none specified, use WandB")
     AP.add_argument("--run_tag", type=str, default=None, help="A tag to identify the run")
+    AP.add_argument("--group_tag", type=str, default=None, help="A tag to group runs")
     pargs, _ = AP.parse_known_args()
     
     #run the stuff
