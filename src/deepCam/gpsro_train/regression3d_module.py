@@ -67,9 +67,20 @@ class Regression3d(object):
 
         # init config and wandb:
         if "run_tag" in config.keys():
-            wandb.init(project = 'GPSRO bias correction', config = config, name = config["run_tag"], id = config["run_tag"])
+            # check if we have a group tag
+            if "group_tag" in config.keys():
+                wandb.init(project = 'GPSRO bias correction',
+                           group = config["group_tag"], config = config,
+                           name = config["run_tag"], id = config["run_tag"])
+            else:
+                wandb.init(project = 'GPSRO bias correction', config = config,
+                           name = config["run_tag"], id = config["run_tag"])
         else:
-            wandb.init(project = 'GPSRO bias correction', config = config)
+            # check if we have a group tag
+            if "group_tag" in config.keys():
+                wandb.init(project = 'GPSRO bias correction', group = config["group_tag"], config = config)
+            else:
+                wandb.init(project = 'GPSRO bias correction', config = config)
             
         self.config = wandb.config
 
@@ -129,6 +140,7 @@ class Regression3d(object):
             self.loss_weights = {x.split(".")[1]: float(self.config[x]) for x in self.config.keys() if x.startswith("loss_weights")}
         elif "loss_weights" in self.config.keys():
             self.loss_weights = self.config["loss_weights"]
+            self.loss_weights = {x: float(self.loss_weights[x]) for x in self.loss_weights.keys()}
 
         #noise vector
         self.dist = None
@@ -210,6 +222,9 @@ class Regression3d(object):
         self.pproc = pp.GPSROPostprocessor(statsfile = os.path.join(root_dir, 'stats3d.npz'),
                                           channels = self.config["channels"],
                                           normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance")
+
+        # some metrics we want to keep track of
+        self.validation_losses = []
 
 
     #routine used for training
@@ -442,6 +457,9 @@ class Regression3d(object):
         self.comm.printr('{:14.4f} REPORT validation: step {} loss {}'.format(dt.datetime.now().timestamp(), step, loss_val_avg), 0)
         self.comm.printr('{:14.4f} REPORT validation: step {} R2 {}'.format(dt.datetime.now().timestamp(), step, val_r2_avg), 0)
 
+        # append to loss list
+        self.validation_losses.append(loss_val_avg)
+        
         # log in wandb
         if (self.config["logging_frequency"] > 0) and (self.comm.rank() == 0):
             wandb.log({"Validation Loss": loss_val_avg}, step=step)
