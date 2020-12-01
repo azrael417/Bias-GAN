@@ -114,7 +114,7 @@ def main(pargs):
     
     # run the training
     tune.run(train_wrapper,
-             loggers=[WandbLogger],
+             #loggers=[WandbLogger],
              resources_per_trial={'gpu': 1},
              num_samples=config["num_trials"],
              search_alg=algo)

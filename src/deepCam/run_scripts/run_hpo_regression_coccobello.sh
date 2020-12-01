@@ -11,11 +11,11 @@ fi
 export OMPI_MCA_btl=^openib
 
 #set the devices
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
 #total number of ranks
-run_tag="regression3d_normal_comfy-sweep-4"
-config_name="good/regression3d_normal_comfy-sweep-4.yaml"
+config_name="regression_hires_hpo.yaml"
+group_tag="hires_hpo_regression"
 
 #mpi options
 mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
@@ -46,16 +46,9 @@ mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
 #wandb agent "tkurth/GPSRO bias correction/wtodmbsu"
 
 #3D mean-variance normalized l2 cosine annealing sweep
-wandb agent "tkurth/GPSRO bias correction/lcphhj62"
+#wandb agent "tkurth/GPSRO bias correction/lcphhj62"
 
-#2D manual runs
-#mpirun -np ${totalranks} ${mpioptions} python ../gpsro_train/hpo_regression.py \
-#       --run_tag ${run_tag} \
-#       --tag_run \
-#       --config_file "../gpsro_configs/${config_name}"
-
-##3D manual runs
-#mpirun -np ${totalranks} ${mpioptions} python ../gpsro_train/hpo_regression3d.py \
-#       --run_tag ${run_tag} \
-#       --tag_run \
-#       --config_file "../gpsro_configs/${config_name}"
+# 3D manual run
+mpirun -np ${totalranks} ${mpioptions} python ../gpsro_train/hpo_regression3d.py \
+       --group_tag ${group_tag} \
+       --config_file "../gpsro_configs/${config_name}"
