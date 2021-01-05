@@ -17,13 +17,15 @@ export CUDA_VISIBLE_DEVICES=0
 mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
 
 #config
-config=../gpsro_configs/regression_hires.yaml
+config=../gpsro_configs/good/regression3d_hires_gentle-dawn-703.yaml
 group_tag="hires_hpo_regression"
+run_tag="regression3d_hires_gentle-dawn-703"
 
 #prepare dir:
 mkdir -p ${output_dir}
 
 #new stuff
 mpirun -np ${totalranks} ${mpioptions} ${profile} python ../gpsro_train/train_regression3d.py \
+       --run_tag ${run_tag} \
        --group_tag ${group_tag} \
        --config_file ${config}
