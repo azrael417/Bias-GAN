@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:20.10-py3
+FROM nvcr.io/nvidia/pytorch:20.12-py3
 
 #Install gds system prereqs
 RUN apt-get update && apt-get install --assume-yes apt-utils \
@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install --assume-yes apt-utils \
     && apt-get install --assume-yes libssl-dev
 
 #install GDS
-COPY sys/gds_0.8.0_amd64.deb /tmp/gds.deb
+COPY sys/gds_0.9.0_amd64.deb /tmp/gds.deb
      RUN dpkg -i --force-depends /tmp/gds.deb && \
      cp /usr/local/gds/lib/cufile.h /usr/local/cuda/include/ && \
      cp -d /usr/local/gds/lib/libcufile*.so* /usr/local/cuda/lib64/ && \

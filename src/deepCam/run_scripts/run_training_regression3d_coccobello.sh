@@ -21,6 +21,9 @@ config=../gpsro_configs/good/regression3d_hires_gentle-dawn-703.yaml
 group_tag="hires_hpo_regression"
 run_tag="regression3d_hires_gentle-dawn-703"
 
+#config=../gpsro_configs/regression_hires.yaml
+#group_tag="hires_hpo_regression"
+
 #prepare dir:
 mkdir -p ${output_dir}
 
