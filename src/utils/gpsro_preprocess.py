@@ -6,8 +6,10 @@ from tqdm import tqdm
 #global parameters
 #data_format = "nchw"
 #data_path_prefix = "/global/cfs/cdirs/dasrepo/tkurth/DataScience/ECMWF/data/gpsro"
-data_path_prefix = "/data/gpsro_data_hires/raw_interpolated"
-outdir = "/data/gpsro_data_hires/preproc_interpolated"
+#data_path_prefix = "/data/gpsro_data_hires/raw_interpolated"
+#outdir = "/data/gpsro_data_hires/preproc_interpolated"
+data_path_prefix = "/data/gpsro_data_hires/test_2020/raw_interpolated"
+outdir = "/data/gpsro_data_hires/test_2020/preproc_interpolated"
 #numfiles = 4
 
 files = [ x.replace("data_in_", "") for x in os.listdir(data_path_prefix) if x.endswith(".npy") and x.startswith("data_in_") ]

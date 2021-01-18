@@ -5,8 +5,12 @@ from scipy.interpolate import SmoothBivariateSpline as interp
 from scipy.sparse import coo_matrix
 from tqdm import tqdm
 
-file_root = "/data/gpsro_data_hires/raw"
-output_dir = "/data/gpsro_data_hires/preproc_mask"
+#file_root = "/data/gpsro_data_hires/raw"
+#output_dir = "/data/gpsro_data_hires/preproc_mask"
+
+file_root = "/data/gpsro_data_hires/test_2020/raw"
+output_dir = "/data/gpsro_data_hires/test_2020/preproc_mask"
+
 pattern = re.compile("data_in_raw_(.*?).data")
 tags = {pattern.match(x).groups()[0] for x in os.listdir(file_root) if pattern.match(x) is not None}
 #matrix_shape = (19, 37)  # 10 degree resolution
