@@ -4,16 +4,18 @@ import re
 import itertools
 import numpy as np
 import pandas as pd
-from scipy.interpolate import SmoothBivariateSpline as interp
-from scipy.sparse import coo_matrix
 from tqdm import tqdm
-import stripy
 
-# plotting
-import cartopy.crs as ccrs
-import matplotlib.pyplot as plt
+# parallelization
+import concurrent.futures as cf
 
-def preprocess(tag, altitudes, triangulation_type, coord_system):
+
+def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_system):
+
+    # we need that
+    import stripy
+    import cartopy.crs as ccrs
+    import matplotlib.pyplot as plt
     
     # load lon
     lon = np.load(os.path.join(file_root,"lon_"+tag+".data"), allow_pickle=True, encoding='latin1')
@@ -41,25 +43,36 @@ def preprocess(tag, altitudes, triangulation_type, coord_system):
     areas = []
 
     # go altitude-wise, because we need that for the 2D delauney
+    error_thrown = False
     for ida, a in enumerate(altitudes):
 
         # triangulate
-        spherical_triangulation = stripy.sTriangulation(lons=phi[ida], lats=theta[ida])
-        all_simplices = spherical_triangulation.simplices
+        try:
+            spherical_triangulation = stripy.sTriangulation(lons=phi[ida], lats=theta[ida])
+        except Exception as err:
+            print(f"Error triangulating {tag}: {err}. Applying permutation.")
+            try:
+                spherical_triangulation = stripy.sTriangulation(lons=phi[ida], lats=theta[ida], permute = True)
+            except Exception as err:
+                print(f"Error triangulating {tag}: {err}. Skipping sample.")
+                error_thrown = True
+                break
 
-        # cartesian coordinates
-        xcoords.append(spherical_triangulation.x)
-        ycoords.append(spherical_triangulation.y)
-        zcoords.append(spherical_triangulation.z)
-
-        # spherical coordinates
-        rcoords.append(np.full(spherical_triangulation.lons.shape, a, dtype=np.float32))
-        phicoords.append(spherical_triangulation.lons)
-        thetacoords.append(spherical_triangulation.lats)
-
-        if triangulation_type == "nodal":
+        # which triangulation do we want?
+        if triangulation_type == "nodal":            
             # get midpoints
             mid_lon, mid_lat = spherical_triangulation.face_midpoints()
+            
+            # cartesian coordinates
+            xc, yc, zc = stripy.spherical.lonlat2xyz(mid_lon, mid_lat)
+            xcoords.append(xc)
+            ycoords.append(yc)
+            zcoords.append(zc)
+            
+            # spherical coordinates
+            rcoords.append(np.full(mid_lon.shape, a, dtype=np.float32))
+            phicoords.append(mid_lon)
+            thetacoords.append(mid_lat)
             
             # interp
             data_in_interp, _ = spherical_triangulation.interpolate_linear(mid_lon, mid_lat, data_in[ida])
@@ -71,6 +84,21 @@ def preprocess(tag, altitudes, triangulation_type, coord_system):
             data_out[ida] = data_out_interp
             
         elif triangulation_type == "dual":
+            error_thrown = False
+
+            # we need these
+            all_simplices = spherical_triangulation.simplices
+            
+            # cartesian coordinates
+            xcoords.append(spherical_triangulation.x)
+            ycoords.append(spherical_triangulation.y)
+            zcoords.append(spherical_triangulation.z)
+            
+            # spherical coordinates
+            rcoords.append(np.full(spherical_triangulation.lons.shape, a, dtype=np.float32))
+            phicoords.append(spherical_triangulation.lons)
+            thetacoords.append(spherical_triangulation.lats)
+            
             # compute areas:
             area = np.zeros((spherical_triangulation.npoints), dtype=np.float32)
             for pid in range(spherical_triangulation.npoints):
@@ -83,19 +111,37 @@ def preprocess(tag, altitudes, triangulation_type, coord_system):
         
                 # compute the centroids (i.e. vertices of the dual graph)
                 mid_lon, mid_lat = spherical_triangulation.face_midpoints(simplices = simplices)
-
-                # create new triangulation
-                tri = stripy.sTriangulation(lons=np.insert(mid_lon, 0, center_lon), lats=np.insert(mid_lat, 0, center_lat))
+                tmp_lons = np.insert(mid_lon, 0, center_lon)
+                tmp_lats = np.insert(mid_lat, 0, center_lat)
+                    
+                try:
+                    # create new triangulation
+                    tri = stripy.sTriangulation(lons=tmp_lons, lats=tmp_lats, permute=False)
+                except Exception as err:
+                    print(f"Error triangulating {tag} for point {pid}: {err}")
+                    print("Coordinates: ", tmp_lons, tmp_lats)
+                    try:
+                        tri = stripy.sTriangulation(lons=tmp_lons, lats=tmp_lats, permute=True)
+                        area[pid] = np.sum(tri.areas())
+                    except Exception as err:
+                        print(f"Error triangulating {tag} for point {pid}: {err}")
+                        error_thrown = True
+                        break
+                
                 area[pid] = np.sum(tri.areas())
+
+            if error_thrown:
+                break
 
             # normalize:
             area *= (4.*np.pi) / np.sum(area)
 
         else:
             raise NotImplementedError(f"Error, triangulation type {triangulation_type} is not supported.")
-
-        # append
-        areas.append(area)
+        
+        if not error_thrown:
+            # append
+            areas.append(area)
 
         ## plot
         #fig = plt.figure(figsize=(20, 10), facecolor="none")
@@ -122,7 +168,10 @@ def preprocess(tag, altitudes, triangulation_type, coord_system):
         #             linewidth=0.5, color="black", transform=ccrs.Geodetic())
 
         #plt.savefig(os.path.join(output_dir, "test_mesh.png"))
-
+        
+    if error_thrown:
+        return
+    
     # flatten
     # cartesian
     xcoords = np.array(list(itertools.chain(*[ x.tolist() for x in xcoords ])), dtype=np.float32)
@@ -140,7 +189,7 @@ def preprocess(tag, altitudes, triangulation_type, coord_system):
     # data
     data_in = np.array(list(itertools.chain(*[ d.tolist() for d in data_in ])), dtype=np.float32)
     data_out = np.array(list(itertools.chain(*[ d.tolist() for d in data_out ])), dtype=np.float32)
-
+    
     # compute final arrays
     if coord_system == "cartesian":
         data_in = np.stack([xcoords, ycoords, zcoords, areas, data_in], axis = 1)
@@ -155,6 +204,7 @@ def preprocess(tag, altitudes, triangulation_type, coord_system):
     np.save(os.path.join(output_dir, "data_in_" + tag + ".npy"), data_in)
     np.save(os.path.join(output_dir, "data_out_" + tag + ".npy"), data_out)
 
+    
 def main():
     # some variables
     file_root = "/data/gpsro_data_hires/raw"
@@ -169,8 +219,9 @@ def main():
     degree = 2.
     levels = list(range(20,65))
     altitude_tag = "geometric_altitude"
-    triangulation_type = "dual"
+    triangulation_type = "nodal"
     coord_system = "spherical"
+    max_workers = 8
 
     # create directory
     if not os.path.isdir(output_dir):
@@ -181,9 +232,16 @@ def main():
     metadf = metadf[ metadf["level"].isin(levels) ].sort_values(by="level", ascending = True).reset_index(drop = True)
     altitudes = [ (earth_radius + x) / earth_radius for x in metadf[ altitude_tag ].values.tolist() ]
     
-    # iterate over tags
-    for idt,tag in enumerate(tqdm(tags)):
-        preprocess(tag, altitudes, triangulation_type, coord_system)
+    # iterate over tags in parallel fashion
+    if max_workers > 1:
+        with cf.ProcessPoolExecutor(max_workers = max_workers) as executor:
+            futures = [executor.submit(preprocess, file_root, tag, output_dir, altitudes, triangulation_type, coord_system) for tag in tags]
+        
+            for future in tqdm(cf.as_completed(futures)):
+                continue
+    else:
+        for tag in tags:
+            preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_system)
 
 if __name__ == "__main__":
     main()
