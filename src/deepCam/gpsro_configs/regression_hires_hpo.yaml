@@ -20,7 +20,7 @@ default: &DEFAULT
   start_lr:
     min: 1E-6
     max: 1E-1
-  max_steps: 22000
+  max_steps: 18000
   local_batch_size:
     - 2
     - 4

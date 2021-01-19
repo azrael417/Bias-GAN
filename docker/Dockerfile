@@ -9,6 +9,12 @@ RUN apt-get update && apt-get install --assume-yes apt-utils \
     && apt-get install --assume-yes libjsoncpp-dev \
     && apt-get install --assume-yes libssl-dev
 
+# some other prereqs
+RUN apt-get install --assume-yes libproj-dev \
+    && apt-get install --assume-yes proj-data \
+    && apt-get install --assume-yes proj-bin \
+    && apt-get install --assume-yes libgeos-dev
+
 #install GDS
 COPY sys/gds_0.9.0_amd64.deb /tmp/gds.deb
      RUN dpkg -i --force-depends /tmp/gds.deb && \
@@ -26,6 +32,9 @@ RUN conda install -y -c conda-forge ruamel.yaml
 
 # raytune:
 RUN pip install -U ray && pip install ray[tune] && pip install hyperopt
+
+# triangulation stuff
+RUN pip install stripy cartopy
 
 #install numpy with pytorch extensions
 RUN mkdir -p /opt
