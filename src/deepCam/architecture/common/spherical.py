@@ -32,10 +32,10 @@ def SphYCoeff(l, m):
     return (-1.)**m * math.sqrt(numerator / denominator)
     
 
-class SphericalFFT(nn.Module):
+class SphericalConv(nn.Module):
 
     def __init__(self, lmax, num_in_channels, num_out_channels):
-        super(SphericalFFT, self).__init__()
+        super(SphericalConv, self).__init__()
         self.lmax = lmax
         self.n_in = num_in_channels
         self.n_out = num_out_channels
