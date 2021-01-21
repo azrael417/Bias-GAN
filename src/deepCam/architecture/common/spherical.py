@@ -6,7 +6,7 @@ from torch import nn, cuda
 # this should be automatically differentiable
 def LegendreP(l, x):
     if l == 0:
-        return torch.Tensor.new_full(x.shape, 1, dtype = x.dtype, device = x.device)
+        return 1. #torch.Tensor.new_full(x.shape, 1, dtype = x.dtype, device = x.device)
     elif l == 1:
         return x
     elif l == 2:
@@ -23,23 +23,23 @@ def LegendreP(l, x):
         x2 = x * x
         return 14.4375 * x2 * x2 * x2 - 19.6875 * x2 * x2 + 6.5625 * x2 - 2.1875
     else:
-        return ( (2.*l-1.) * x * LegendreP(l-1, x) - (l-1.) * LegendreP(l-2, x) ) / torch.float(l)
+        return ( (2.*l-1.) * x * LegendreP(l-1, x) - (l-1.) * LegendreP(l-2, x) ) / float(l)
 
     
 def SphYCoeff(l, m):
     numerator = (2.*l+1.) * math.factorial(l-m)
     denominator = 4. * math.pi * math.factorial(l+m)
     return (-1.)**m * math.sqrt(numerator / denominator)
-    
+
 
 class SphericalConv(nn.Module):
 
-    def __init__(self, lmax, num_in_channels, num_out_channels):
+    def __init__(self, lmax, num_in_channels, num_out_channels, normalizer = None, activation = nn.LeakyReLU):
         super(SphericalConv, self).__init__()
         self.lmax = lmax
         self.n_in = num_in_channels
         self.n_out = num_out_channels
-        assert(self.lmax >= 0, "Error, SphericalFFT only supports l >= 0.")
+        assert (self.lmax >= 0), "Error, SphericalFFT only supports l >= 0."
 
         # build lookup tables:
         self.coeffs = {}
@@ -52,7 +52,15 @@ class SphericalConv(nn.Module):
                 self.elem_count	+= 1
 
         # init weights: only m=0 are relevant
-        self.weights = nn.ParameterList([torch.randn((self.n_in, self.n_out)) for i in range(self.lmax)])
+        self.weights = nn.ParameterList([nn.Parameter(torch.randn((self.n_in, self.n_out))) for i in range(self.lmax+1)])
+
+        # normalizer if requested
+        self.norm = None
+        if normalizer is not None:
+            self.norm = normalizer(num_features = self.n_out)
+
+        # activation
+        self.activation = activation()
 
     def forward(self, theta, phi, areas, values, theta_out = None, phi_out = None):
         # expects the following input:
@@ -104,24 +112,37 @@ class SphericalConv(nn.Module):
 
         # l = m = 0
         prod = areas * leg_l_in[0] * torch.matmul(values, self.weights[0])
-        results.append(self.coeffs[(0,0)] * torch.sum(prod, dims=1))
+        results.append(self.coeffs[(0,0)] * torch.sum(prod, dim=1, keepdim=True))
         
         # compute the SFT
-        count = 1
         for l in range(1, self.lmax+1):
             # legendre polynomial
             leg = leg_l_in[l]
 
             # m = 0
             prod = areas * leg * torch.matmul(values, self.weights[l])
-            results.append(self.coeffs[(l,0)] * torch.sum(prod, dims=1))
-            count += 1
+            results.append(self.coeffs[(l,0)] * torch.sum(prod, dim=1, keepdim=True))
             
             # m > 0
             for m in range(1, l+1):
-                results.append(self.coeffs[(l,m)] * torch.sum(prod * exp_mimphi_in[m], dims=1))
-                count += 1
+                tmp_res = self.coeffs[(l,m)] * torch.sum(prod * exp_mimphi_in[m], dim=1, keepdim=True)
+                results.append(torch.real(tmp_res))
+                results.append(torch.imag(tmp_res))
 
+        # prepare for activation
+        results = torch.cat(results, dim=1)
+                
+        # normalize if requested
+        if self.norm is not None:
+            results = torch.transpose(results, 1, 2)
+            results = torch.transpose(self.norm(results), 1, 2)
+
+        # fire activation
+        results = self.activation(results)
+
+        # postprocess
+        results = torch.split(results, 1, dim=1)
+        
         # compute the ISFT: coefficients are already taken care of
         # l = m = 0
         result = results[0] * leg_l_out[0]
@@ -131,14 +152,18 @@ class SphericalConv(nn.Module):
             leg = leg_l_out[l]
 
             # m = 0
-            result += results[count] * leg
+            result = result + results[count] * leg
             count += 1
 
             # m > 0
             for m in range(1, l+1):
+                # extract real and imag parts
+                tmp_re = results[count] * torch.real(exp_mimphi_out[m])
+                count += 1
+                tmp_im = results[count] * torch.imag(exp_mimphi_out[m])
+                count += 1
                 # we have a + instead of a minus because we are using Ybar_lm not Y_lm
-                tmp = torch.real(results[count]) * torch.real(exp_mimphi_out[m]) + torch.imag(results[count]) * torch.imag(exp_mimphi_out[m])
-                result += leg * 2. * tmp
+                result = result + leg * 2. * (tmp_re + tmp_im)
                     
         return result
 

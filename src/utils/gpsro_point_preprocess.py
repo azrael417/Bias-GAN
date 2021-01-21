@@ -234,7 +234,7 @@ def main():
     # some variables
     file_root = "/data/gpsro_data_hires/raw"
     level_file = "./gpsro_metadata.csv"
-    output_dir = "/data/gpsro_data_hires/preproc_point"
+    output_dir = "/data/gpsro_data_hires/spherical/preproc_point"
     pattern = re.compile("data_in_raw_(.*?).data")
     tags = sorted([pattern.match(x).groups()[0] for x in os.listdir(file_root) if pattern.match(x) is not None])
     earth_radius = 6371000

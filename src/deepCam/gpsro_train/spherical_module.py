@@ -23,7 +23,7 @@ from utils import losses
 from utils import yparams as yp
 from utils import parsing_helpers as ph
 from data import gpsro_spherical_dataset as gpsro
-from architecture.gpsro import spherical as sph
+from architecture.gpsro import spherical_unet as sph
 #from utils import gpsro_visualizer as gp
 #from utils import gpsro_postprocessor as pp
 
@@ -108,28 +108,20 @@ class SphericalRegression(object):
         #    raise NotImplementedError("Error, " + self.config["layer_normalization"] + " not supported")
 
         # Define architecture
-        n_input_channels = 1
-        n_output_channels = 1
-        self.net = sph.SphericalNet(n_input = n_input_channels, n_input = n_output_channels)
+        n_input_channels = 45
+        n_output_channels = 45
+        self.net = sph.SphericalConvUNet(num_input_channels = n_input_channels,
+                                         num_output_channels = n_output_channels)
         self.net.to(self.device)
 
         #select loss
         self.criterion = None
         if self.config["loss_type"] == "l1":
-            if self.config["enable_masks"]:
-                self.criterion = losses.L1LossWeighted(normalize=False)
-            else:
-                self.criterion = torch.nn.L1Loss()
+            self.criterion = torch.nn.L1Loss()
         elif self.config["loss_type"] == "smooth_l1":
-            if self.config["enable_masks"]:
-                self.criterion = losses.L1LossWeighted(normalize=False, smooth=True)
-            else:
-                self.criterion = torch.nn.SmoothL1Loss()
+            self.criterion = torch.nn.SmoothL1Loss()
         elif self.config["loss_type"] == "l2":
-            if self.config["enable_masks"]:
-                self.criterion = losses.L2LossWeighted(normalize=False)
-            else:
-                self.criterion = torch.nn.MSELoss()
+            self.criterion = torch.nn.MSELoss()
         else:
             raise NotImplementedError("Error, {} loss not supported".format(config["loss_type"]))
     
@@ -170,8 +162,8 @@ class SphericalRegression(object):
                                        normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance",
                                        shuffle = True,
                                        shard_idx = self.comm.rank(), shard_num = self.comm.size(),
-                                       num_intra_threads = self.config["max_intra_threads"],
-                                       read_device = torch.device("cpu") if not self.config["enable_gds"] else self.device)
+                                       num_intra_threads = self.config["max_intra_threads"])
+        
         self.train_loader = DataLoader(train_set, self.config["local_batch_size"],
                                        collate_fn = gpsro.gpsro_collate_fn,
                                        pin_memory = True,
@@ -184,10 +176,10 @@ class SphericalRegression(object):
                                             normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance",
                                             shuffle = True,
                                             shard_idx = self.comm.rank(), shard_num = self.comm.size(),
-                                            num_intra_threads = self.config["max_intra_threads"],
-                                            read_device = torch.device("cpu") if not self.config["enable_gds"] else self.device)
+                                            num_intra_threads = self.config["max_intra_threads"])
+        
         self.validation_loader = DataLoader(validation_set, self.config["local_batch_size"],
-                                            gpsro_collate_fn = gpsro.gpsro_collate_fn,
+                                            collate_fn = gpsro.gpsro_collate_fn,
                                             pin_memory = True,
                                             drop_last = True)
 
@@ -227,18 +219,18 @@ class SphericalRegression(object):
             mse_list = []
         
             #for inputs_raw, labels, source in train_loader:
-            for r, phi, theta, area, data, label in self.train_loader:
-
-                print(r, phi, theta, area, data, label)
-                sys.exit(1)
+            for r, theta, phi, area, data, label, filename in self.train_loader:
                 
                 # upload to device
-                #token = token.to(self.device)
-            
-                ## forward pass
+                r, theta, phi, area, data, label = map(lambda t: t.to(self.device), (r, theta, phi, area, data, label))
+
+                # forward pass
                 #with amp.autocast(enabled = self.config["enable_amp"]):
-                #    outputs = self.net(inputs)
+                outputs = self.net(r, theta, phi, area, data)
                 #    loss = self.criterion(outputs, label)
+
+                print(outputs)
+                sys.exit(1)
 
                 ## average loss
                 #loss_avg = self.comm.metric_average(loss, "train_loss", device = self.device)
