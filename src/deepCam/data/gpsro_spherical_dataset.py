@@ -6,9 +6,6 @@ from time import sleep
 import torch
 from torch.utils.data import Dataset
 
-#custom reader
-import numpy_reader as nr
-
 
 #dataset class
 class GPSRODataset(Dataset):
@@ -16,7 +13,7 @@ class GPSRODataset(Dataset):
     def init_files(self, source):
         self.source = source
 
-        self.allfiles = sorted([ x.replace("data_in_", "") for x in os.listdir(self.source) if x.endswith(".npy") and x.startswith("data_in_") ])
+        self.allfiles = sorted([ x for x in os.listdir(self.source) if x.endswith(".npz") ])
         
         if self.shuffle:
             self.rng.shuffle(self.allfiles)
@@ -52,18 +49,6 @@ class GPSRODataset(Dataset):
         else:
             devindex = self.read_device.index
 
-        #parse the file sizes
-        #data
-        data_filename = os.path.join(self.source, "data_in_"+self.files[0])
-        self.npr_data = nr.numpy_reader(split_axis = False, device = devindex)
-        self.npr_data.num_intra_threads = num_intra_threads
-        self.npr_data.parse(data_filename)
-        #label
-        label_filename = os.path.join(self.source, "data_out_"+self.files[0])
-        self.npr_label = nr.numpy_reader(split_axis = False, device = devindex)
-        self.npr_label.num_intra_threads = num_intra_threads
-        self.npr_label.parse(label_filename)
-
         #set up the normalization
         statsfile = np.load(statsfile)
 
@@ -90,11 +75,6 @@ class GPSRODataset(Dataset):
         data_scale = data_scale.astype(np.float32)
         label_shift = label_shift.astype(np.float32)
         label_scale = label_scale.astype(np.float32)
-        #store into tensors
-        self.data_shift = torch.tensor(data_shift, requires_grad=False).to(self.read_device)
-        self.data_scale = torch.tensor(data_scale, requires_grad=False).to(self.read_device)
-        self.label_shift = torch.tensor(label_shift, requires_grad=False).to(self.read_device)
-        self.label_scale = torch.tensor(label_scale, requires_grad=False).to(self.read_device)
         
         print("Initialized dataset with ", self.length, " samples.")
 
@@ -103,26 +83,25 @@ class GPSRODataset(Dataset):
         return self.length
 
     
-    @property
-    def shapes(self):
-        return self.npr_data.shape, self.npr_label.shape
-
-    
     def __getitem__(self, idx):
+        # open file
+        infile = os.path.realpath(os.path.join(self.source, self.files[idx]))
+        token = numpy.load(infile)
+        
+        #coords
+        r = token['r']
+        phi = token['phi']
+        theta = token['theta']
+        area = token['area']
+        
         #data
-        data_file = os.path.realpath(os.path.join(self.source, "data_in_" + self.files[idx]))
-        self.npr_data.init_file(data_file)
-        data = self.npr_data.get_sample(0)
-        self.npr_data.finalize_file()
+        data = token['data']
         
         #label
-        label_file = os.path.realpath(os.path.join(self.source, "data_out_" + self.files[idx]))
-        self.npr_label.init_file(label_file)
-        label = self.npr_label.get_sample(0)
-        self.npr_label.finalize_file()
+	label = token['label']
         
         #preprocess
-        data[:, -1] = self.data_scale * (data[:, -1] - self.data_shift)
-        label[:, -1] = self.label_scale * (label[:, -1] - self.label_shift)
+        data = self.data_scale * (data - self.data_shift)
+        label = self.label_scale * (label - self.label_shift)
 
-        return data, label, self.files[idx]
+        return (r, phi, theta, area, data, label, self.files[idx])

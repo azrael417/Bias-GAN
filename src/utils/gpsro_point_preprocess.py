@@ -10,7 +10,7 @@ from tqdm import tqdm
 import concurrent.futures as cf
 
 
-def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_system):
+def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_system, align_angles):
 
     # we need that
     import stripy
@@ -30,6 +30,10 @@ def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_
     phi = [np.radians(x) for x in lon]
     theta = [np.radians(x) for x in lat]
 
+    # init master grid to zero
+    master_lon = None
+    master_lat = None
+
     # go altitude by altitude for 2D delaunay
     # cartesian
     xcoords = []
@@ -46,7 +50,7 @@ def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_
     error_thrown = False
     for ida, a in enumerate(altitudes):
 
-        # triangulate
+        # triangulate: only repeat if requested
         try:
             spherical_triangulation = stripy.sTriangulation(lons=phi[ida], lats=theta[ida])
         except Exception as err:
@@ -59,25 +63,32 @@ def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_
                 break
 
         # which triangulation do we want?
-        if triangulation_type == "nodal":            
+        if triangulation_type == "nodal":
             # get midpoints
-            mid_lon, mid_lat = spherical_triangulation.face_midpoints()
+            if (align_angles and ida == 0) or (not align_angles):
+                mid_lon, mid_lat = spherical_triangulation.face_midpoints()
             
+                # compute cartesian coordinates
+                xc, yc, zc = stripy.spherical.lonlat2xyz(mid_lon, mid_lat)
+
+                # get areas
+                area = spherical_triangulation.areas()
+
+                # spherical coordinates
+                phicoords.append(mid_lon)
+                thetacoords.append(mid_lat)
+                
             # cartesian coordinates
-            xc, yc, zc = stripy.spherical.lonlat2xyz(mid_lon, mid_lat)
-            xcoords.append(xc)
-            ycoords.append(yc)
-            zcoords.append(zc)
+            xcoords.append(a*xc)
+            ycoords.append(a*yc)
+            zcoords.append(a*zc)
             
-            # spherical coordinates
-            rcoords.append(np.full(mid_lon.shape, a, dtype=np.float32))
-            phicoords.append(mid_lon)
-            thetacoords.append(mid_lat)
+            # append rcoords
+            rcoords.append(a)
             
             # interp
             data_in_interp, _ = spherical_triangulation.interpolate_linear(mid_lon, mid_lat, data_in[ida])
             data_out_interp, _ = spherical_triangulation.interpolate_linear(mid_lon, mid_lat, data_out[ida])
-            area = spherical_triangulation.areas()
 
             # update data array
             data_in[ida] = data_in_interp
@@ -140,8 +151,9 @@ def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_
             raise NotImplementedError(f"Error, triangulation type {triangulation_type} is not supported.")
         
         if not error_thrown:
-            # append
-            areas.append(area)
+            # append areas if requested
+            if (align_angles and ida == 0) or (not align_angles):
+                areas.append(area)
 
         ## plot
         #fig = plt.figure(figsize=(20, 10), facecolor="none")
@@ -179,30 +191,41 @@ def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_
     zcoords = np.array(list(itertools.chain(*[ z.tolist() for z in zcoords ])), dtype=np.float32)
 
     # spherical
-    rcoords = np.array(list(itertools.chain(*[ x.tolist() for x in rcoords ])), dtype=np.float32)
+    rcoords = np.array(rcoords, dtype=np.float32)
     phicoords = np.array(list(itertools.chain(*[ x.tolist() for x in phicoords ])), dtype=np.float32)
     thetacoords = np.array(list(itertools.chain(*[ x.tolist() for x in thetacoords ])), dtype=np.float32)
+
+    # some reshaping if angles are aligned
+    if align_angles:
+        xcoords = np.transpose(np.reshape(xcoords, (len(altitudes), -1)), (1,0))
+        ycoords = np.transpose(np.reshape(ycoords, (len(altitudes), -1)), (1,0))
+        zcoords = np.transpose(np.reshape(zcoords, (len(altitudes), -1)), (1,0))
     
     # integration measures
     areas = np.array(list(itertools.chain(*[ z.tolist() for z in areas ])), dtype=np.float32)
-
+    
     # data
     data_in = np.array(list(itertools.chain(*[ d.tolist() for d in data_in ])), dtype=np.float32)
     data_out = np.array(list(itertools.chain(*[ d.tolist() for d in data_out ])), dtype=np.float32)
-    
-    # compute final arrays
-    if coord_system == "cartesian":
-        data_in = np.stack([xcoords, ycoords, zcoords, areas, data_in], axis = 1)
-        data_out = np.stack([xcoords, ycoords, zcoords, areas, data_out], axis = 1)
-    elif coord_system == "spherical":
-        data_in = np.stack([rcoords, phicoords, thetacoords, areas, data_in], axis = 1)
-        data_out = np.stack([rcoords, phicoords, thetacoords, areas, data_out], axis = 1)
-    else:
-        raise NotImplementedError(f"Error, {coord_system} coordinate system not supported!")
+    if align_angles:
+        data_in = np.transpose(np.reshape(data_in, (len(altitudes), -1)), (1,0))
+        data_out = np.transpose(np.reshape(data_out, (len(altitudes), -1)), (1,0))
     
     # store results
-    np.save(os.path.join(output_dir, "data_in_" + tag + ".npy"), data_in)
-    np.save(os.path.join(output_dir, "data_out_" + tag + ".npy"), data_out)
+    if coord_system == "cartesian":
+        np.savez(os.path.join(output_dir, "data_" + tag + ".npz"),
+                 x = xcoords,
+                 y = ycoords,
+                 z = zcoords,
+                 data = data_in,
+                 label = data_out)
+    else:
+        np.savez(os.path.join(output_dir, "data_" + tag + ".npz"),
+                 r = rcoords,
+                 phi = phicoords,
+                 theta = thetacoords,
+                 data = data_in,
+                 label = data_out)
 
     
 def main():
@@ -221,6 +244,7 @@ def main():
     altitude_tag = "geometric_altitude"
     triangulation_type = "nodal"
     coord_system = "spherical"
+    align_angles = True
     max_workers = 8
 
     # create directory
@@ -235,13 +259,14 @@ def main():
     # iterate over tags in parallel fashion
     if max_workers > 1:
         with cf.ProcessPoolExecutor(max_workers = max_workers) as executor:
-            futures = [executor.submit(preprocess, file_root, tag, output_dir, altitudes, triangulation_type, coord_system) for tag in tags]
+            futures = [executor.submit(preprocess, file_root, tag, output_dir,
+                                       altitudes, triangulation_type, coord_system, align_angles) for tag in tags]
         
             for future in tqdm(cf.as_completed(futures)):
                 continue
     else:
-        for tag in tags:
-            preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_system)
+        for tag in tqdm(tags):
+            preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_system, align_angles)
 
 if __name__ == "__main__":
     main()
