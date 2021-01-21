@@ -4,8 +4,25 @@ import numpy as np
 from time import sleep
 
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 
+def gpsro_collate_fn(tensors):
+    # radii are simple since there is not batch dependence on r:
+    r_out = tensors[0][0]
+
+    # determine max padding value
+    max_length = max([t[1].shape[0] for t in tensors])
+    
+    # pad the stuff
+    phi_out = torch.stack([F.pad(t[1], (0, max_length - t[1].shape[0])) for t in tensors], axis=0)
+    theta_out = torch.stack([F.pad(t[2], (0, max_length - t[2].shape[0])) for t in tensors], axis=0)
+    area_out = torch.stack([F.pad(t[3], (0, max_length - t[3].shape[0])) for t in tensors], axis=0)
+    data_out = torch.stack([F.pad(t[4], (0, max_length - t[4].shape[0], 0, 0)) for t in tensors], axis=0)
+    label_out = torch.stack([F.pad(t[5], (0, max_length - t[5].shape[0], 0, 0)) for t in tensors], axis=0)
+    files_out = torch.stack([t[6] for t in tensors], axis=0)
+
+    return r_out, phi_out, theta_out, area_out, data_out, label_out, files_out
 
 #dataset class
 class GPSRODataset(Dataset):
@@ -71,10 +88,10 @@ class GPSRODataset(Dataset):
             label_scale = 1. / np.sqrt( statsfile["label_sqmean"] - np.square(label_shift) )
             
         #reshape into broadcastable shape
-        data_shift = data_shift.astype(np.float32)
-        data_scale = data_scale.astype(np.float32)
-        label_shift = label_shift.astype(np.float32)
-        label_scale = label_scale.astype(np.float32)
+        data_shift = np.expand_dims(data_shift.astype(np.float32), axis=0)
+        data_scale = np.expand_dims(data_scale.astype(np.float32), axis=0)
+        label_shift = np.expand_dims(label_shift.astype(np.float32), axis=0)
+        label_scale = np.expand_dims(label_scale.astype(np.float32), axis=0)
         
         print("Initialized dataset with ", self.length, " samples.")
 

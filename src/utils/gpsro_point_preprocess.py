@@ -217,6 +217,7 @@ def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_
                  x = xcoords,
                  y = ycoords,
                  z = zcoords,
+                 area = areas,
                  data = data_in,
                  label = data_out)
     else:
@@ -224,6 +225,7 @@ def preprocess(file_root, tag, output_dir, altitudes, triangulation_type, coord_
                  r = rcoords,
                  phi = phicoords,
                  theta = thetacoords,
+                 area = areas,
                  data = data_in,
                  label = data_out)
 
