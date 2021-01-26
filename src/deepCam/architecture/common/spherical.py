@@ -4,32 +4,50 @@ import torch.nn.functional as F
 from torch import nn, cuda
 
 # this should be automatically differentiable
-def LegendreP(l, x):
+def LegendreP(l, m, x):
+    assert(np.abs(m) <= l), "Error, please specify a valid combination of l and m."
     if l == 0:
-        return 1. #torch.Tensor.new_full(x.shape, 1, dtype = x.dtype, device = x.device)
+        return 1.
     elif l == 1:
-        return x
+        if m == 1:
+            return -torch.sqrt(1-x*x)
+        if m ==0:
+            return x
+        if m == -1:
+            return 0.5 * torch.sqrt(1-x*x)
     elif l == 2:
-        return 1.5 * x * x - 0.5
-    elif l == 3:
-        return 2.5 * x * x * x - 1.5 * x
-    elif l == 4:
-        x2 = x * x
-        return 4.375 * x2 * x2 - 2.75 * x2 + 0.375
-    elif l == 5:
-        x3 = x * x * x
-        return 7.875 * x3 * x * x - 8.75 * x3 + 1.875 * x
-    elif l == 6:
-        x2 = x * x
-        return 14.4375 * x2 * x2 * x2 - 19.6875 * x2 * x2 + 6.5625 * x2 - 2.1875
+        if m == 2:
+            return 3. * (1-x*x)
+        if m == 1:
+            return -3. * x * torch.sqrt(1-x*x)
+        if m == 0:
+            return 0.5 * (3.*x*x-1.)
+        if m == -1:
+            return 0.5 * x * torch.sqrt(1-x*x)
+        if m == -2:
+            return 0.125 * (1.-x*x)
     else:
-        return ( (2.*l-1.) * x * LegendreP(l-1, x) - (l-1.) * LegendreP(l-2, x) ) / float(l)
+        # make m positive
+        if m < 0:
+            return (-1)**m * math.factorial(l-m) / math.factorial(l+m) * LegendreP(l, -m, x)
+        
+        # use recurrence relation
+        if l == m:
+            return -(2.*l-1.) * torch.sqrt(1.-x*x) * LegendreP(l-1, m-1, x)
+        else:
+            prefac = 1./float(l-m)
+            return prefac * ((2.*l-1.) * LegendreP(l-1, m, x) - (l-1.+m) * LegendreP(l-2, m, x))
 
     
 def SphYCoeff(l, m):
     numerator = (2.*l+1.) * math.factorial(l-m)
     denominator = 4. * math.pi * math.factorial(l+m)
     return (-1.)**m * math.sqrt(numerator / denominator)
+
+
+def SphericalHarmonicY(l, m, theta, phi):
+    exp_imphi = torch.complex(torch.cos(m*phi), torch.sin(m*phi))
+    return SphYCoeff(l, m) * LegendreP(l, m, torch.cos(theta)) * exp_imphi
 
 
 class SphericalConv(nn.Module):
@@ -95,15 +113,19 @@ class SphericalConv(nn.Module):
         # polar
         cos_theta = torch.cos(theta)
         leg_l_in = {}
-        for l in range(0, self.lmax+1):
-            leg_l_in[l] = LegendreP(l, cos_theta)
+        leg_l_in[(0,0)] = LegendreP(0, 0, cos_theta)
+        for l in range(1, self.lmax+1):
+            for m in range(1, l+1):
+                leg_l_in[(l,m)] = LegendreP(l, m, cos_theta)
         
         # if resampling is requested, do it here
         if theta_out is not None:
             cos_theta = torch.cos(theta_out)
             leg_l_out = {}
-            for l in range(0, self.lmax+1):
-                leg_l_out[l] = LegendreP(l, cos_theta)
+            leg_l_out[(0,0)] = LegendreP(0, 0, cos_theta)
+            for l in range(1, self.lmax+1):
+                for m in range(1, l+1):
+                    leg_l_out[(l, m)] = LegendreP(l, m, cos_theta)
         else:
             leg_l_out = leg_l_in
         
@@ -111,21 +133,21 @@ class SphericalConv(nn.Module):
         results = []
 
         # l = m = 0
-        prod = areas * leg_l_in[0] * torch.matmul(values, self.weights[0])
+        prod = areas * leg_l_in[(0,0)] * torch.matmul(values, self.weights[0])
         results.append(self.coeffs[(0,0)] * torch.sum(prod, dim=1, keepdim=True))
         
         # compute the SFT
         for l in range(1, self.lmax+1):
-            # legendre polynomial
-            leg = leg_l_in[l]
-
+            
             # m = 0
-            prod = areas * leg * torch.matmul(values, self.weights[l])
-            results.append(self.coeffs[(l,0)] * torch.sum(prod, dim=1, keepdim=True))
+            leg = leg_l_in[(l,0)]
+            prod = areas * torch.matmul(values, self.weights[l])
+            results.append(self.coeffs[(l,0)] * torch.sum(leg * prod, dim=1, keepdim=True))
             
             # m > 0
             for m in range(1, l+1):
-                tmp_res = self.coeffs[(l,m)] * torch.sum(prod * exp_mimphi_in[m], dim=1, keepdim=True)
+                leg = leg_l_in[(l,m)]
+                tmp_res = self.coeffs[(l,m)] * torch.sum(leg * prod * exp_mimphi_in[m], dim=1, keepdim=True)
                 results.append(torch.real(tmp_res))
                 results.append(torch.imag(tmp_res))
 
@@ -148,15 +170,15 @@ class SphericalConv(nn.Module):
         result = results[0] * leg_l_out[0]
         count = 1
         for l in range(1, self.lmax+1):
-            # legendre polynomial
-            leg = leg_l_out[l]
 
             # m = 0
+            leg = leg_l_out[(l,0)]
             result = result + results[count] * leg
             count += 1
 
             # m > 0
             for m in range(1, l+1):
+                leg = leg_l_out[(l,m)]
                 # extract real and imag parts
                 tmp_re = results[count] * torch.real(exp_mimphi_out[m])
                 count += 1
@@ -164,7 +186,7 @@ class SphericalConv(nn.Module):
                 count += 1
                 # we have a + instead of a minus because we are using Ybar_lm not Y_lm
                 result = result + leg * 2. * (tmp_re + tmp_im)
-                    
+                
         return result
 
 
