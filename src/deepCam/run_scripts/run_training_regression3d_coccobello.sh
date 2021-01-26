@@ -17,9 +17,9 @@ export CUDA_VISIBLE_DEVICES=0
 mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"
 
 #config
-config=../gpsro_configs/good/regression3d_hires_gentle-dawn-703.yaml
-group_tag="hires_hpo_regression"
-run_tag="regression3d_hires_gentle-dawn-703"
+config=../gpsro_configs/good/regression3d_hires_mixed_gentle-dawn-703.yaml
+group_tag="hires_mixed_hpo_regression"
+run_tag="regression3d_hires_mixed_gentle-dawn-703"
 
 #config=../gpsro_configs/regression_hires.yaml
 #group_tag="hires_hpo_regression"

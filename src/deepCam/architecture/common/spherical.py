@@ -31,6 +31,9 @@ def SphYCoeff(l, m):
     denominator = 4. * math.pi * math.factorial(l+m)
     return (-1.)**m * math.sqrt(numerator / denominator)
 
+def SphericalHarmonicY(l, m, theta, phi):
+    exp_imphi = torch.complex(torch.cos(m*phi), torch.sin(m*phi))
+    return SphYCoeff(l, m) * LegendreP(l, torch.cos(theta)) * exp_imphi
 
 class SphericalConv(nn.Module):
 

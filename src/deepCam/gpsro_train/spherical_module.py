@@ -226,10 +226,22 @@ class SphericalRegression(object):
 
                 # forward pass
                 #with amp.autocast(enabled = self.config["enable_amp"]):
-                outputs = self.net(r, theta, phi, area, data)
+                #outputs = self.net(r, theta, phi, area, data)
                 #    loss = self.criterion(outputs, label)
 
-                print(outputs)
+                # crosscheck with numpy
+                theta_arr = theta.cpu().numpy()
+                phi_arr = phi.cpu().numpy()
+                from architecture.common.spherical import SphericalHarmonicY
+                from scipy.special import sph_harm
+                l = 1
+                m = 0
+                sphy_torch_arr = SphericalHarmonicY(l, m, theta, phi).cpu().numpy()[0,:10]
+                sphy_arr = sph_harm(m, l, phi_arr[0,0:10], theta_arr[0,0:10])
+                #print(np.abs(sphy_torch_arr - sphy_arr))
+                print(sphy_torch_arr, "\n", sphy_arr)
+                #outputs_arr = outputs.cpu().numpy()
+                print(outputs_arr)
                 sys.exit(1)
 
                 ## average loss

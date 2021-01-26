@@ -32,9 +32,10 @@ class GPSRODataset(Dataset):
             
         self.length = len(self.files)
 
-        
+    
     def __init__(self, source, statsfile, channels,
                  normalization_type = "MinMax", shuffle = True, masks = False,
+                 augmentation_mode = None,
                  shard_idx = 0, shard_num = 1,
                  num_intra_threads = 1, seed = 12345,
                  read_device = torch.device("cpu"), send_device = torch.device("cpu")):
@@ -43,14 +44,20 @@ class GPSRODataset(Dataset):
         self.normalization_type = normalization_type
         self.shuffle = shuffle
         self.masks = masks
+        self.seed = seed
         self.rng = np.random.RandomState(seed)
         self.shard_idx = shard_idx
         self.shard_num = shard_num
         self.read_device = read_device
         self.send_device = send_device
-
+        self.augmentation_mode = augmentation_mode
+        
         #set up files
         self.init_files(source)
+
+        # init mixing
+        if self.augmentation_mode == "static":
+            self.mixing = self.rng.rand(self.length)
 
         #set up reader
         if (self.read_device == torch.device("cpu")):
@@ -149,6 +156,16 @@ class GPSRODataset(Dataset):
             mask = mask.to(self.send_device)
 
         #preprocess
+        #mix
+        if self.augmentation_mode == "static":
+            data = data + self.mixing[idx] * label
+            label = (1.-self.mixing[idx]) * label
+        elif self.augmentation_mode == "dynamic":
+            p = self.rng.rand()
+            data = data + p * label
+            label = (1.-p) * label
+            
+        #scale
         data = self.data_scale * (data - self.data_shift)
         label = self.label_scale * (label - self.label_shift)
 

@@ -189,6 +189,7 @@ class Regression3d(object):
                                        channels = self.config["channels"],
                                        normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance",
                                        shuffle = True,
+                                       augmentation_mode = None if not config["use_augmentation"] else "dynamic",
                                        masks = self.config["enable_masks"],
                                        shard_idx = self.comm.rank(), shard_num = self.comm.size(),
                                        num_intra_threads = self.config["max_intra_threads"],
@@ -204,6 +205,7 @@ class Regression3d(object):
                                             channels = self.config["channels"],
                                             normalization_type = "MinMax" if self.config["noise_type"] == "Uniform" else "MeanVariance",
                                             shuffle = True,
+                                            augmentation_mode = None if not config["use_augmentation"] else "static",
                                             masks = self.config["enable_masks"],
                                             shard_idx = self.comm.rank(), shard_num = self.comm.size(),
                                             num_intra_threads = self.config["max_intra_threads"],
@@ -246,7 +248,7 @@ class Regression3d(object):
         while True:
             self.comm.printr('{:14.4f} REPORT: starting epoch {}'.format(dt.datetime.now().timestamp(), epoch), 0)
             mse_list = []
-        
+            
             #for inputs_raw, labels, source in train_loader:
             for token in self.train_loader:
             
