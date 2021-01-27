@@ -350,3 +350,67 @@ class SphericalConv(nn.Module):
         return result
 
 
+# convolutions if the input is already in spectral space: useful for chaining convs together without pooling
+class SphericalConvSpectral(nn.Module):
+
+    def __init__(self, lmax, num_in_channels, num_out_channels,
+	         normalizer = None, activation = nn.LeakyReLU):
+        super(SphericalConvSpectral, self).__init__()
+        self.lmax = lmax
+        self.n_in = num_in_channels
+        self.n_out = num_out_channels
+        assert (self.lmax >= 0), "Error, SphericalFFT only supports l >= 0."
+
+        # build lookup tables:
+        self.coeffs = {}
+        self.coeffs[0] = 2.*math.pi*math.sqrt(4.*math.pi)
+        self.elem_count = 1
+        for l in range(1, self.lmax+1):
+            self.coeffs[l] = 2.*math.pi*math.sqrt(4.*math.pi / (2.*l+1.))
+            for m in range(0, l+1):
+                self.elem_count += 1
+
+        # init weights: only m=0 are relevant
+        self.weights = nn.ParameterList([nn.Parameter(torch.randn((self.n_in, self.n_out))) for i in range(self.lmax+1)])
+
+        # normalizer if requested
+        self.norm = None
+        if normalizer is not None:
+            self.norm = normalizer(num_features = self.n_out)
+
+        # activation
+        self.activation = None
+        if activation is not None:
+            self.activation = activation()        
+
+            
+    def forward(self, x):
+        # sanity check
+        assert(x.shape[1] == self.elem_count), \
+            f"Error, expected {self.elem_count} elements in dim=1 but got {values.shape[1]}"
+        
+        # x: N x num_comp x num_in_channels
+        xs = torch.split(x, dims=1)
+
+        # compute convolution
+        # l = m = 0
+        xs[0] = self.coeffs[0] * torch.matmul(xs[0], self.weights[0])
+        count = 1
+        for l in range(1, self.lmax+1):
+            for m in range(0, l+1):
+                xs[count] = self.coeffs[l] * torch.matmul(xs[count], self.weights[l])
+                count += 1
+
+        # concatenate again
+        out = torch.cat(xs, dim=1)
+
+        # normalize if requested
+        if self.norm is not None:
+            out = torch.transpose(out, 1, 2)
+            out = torch.transpose(self.norm(out), 1, 2)
+
+        # activation
+        if self.activation is not None:
+	    out = self.activation(out)
+
+        return out
