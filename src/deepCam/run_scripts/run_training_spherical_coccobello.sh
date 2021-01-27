@@ -11,7 +11,7 @@ fi
 export OMPI_MCA_btl=^openib
 
 #set the devices
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 
 #total number of ranks
 run_tag="spherical_normal_debug"

@@ -1,0 +1,58 @@
+default: &DEFAULT
+
+  root_dir: "/data/gpsro_data_hires/"
+  output_dir: "/data/gpsro_data_hires/runs/{run_tag}"
+  model_prefix: "regressor"
+  checkpoint: ""
+
+  noise_dimensions: 0
+  noise_type: "Normal"
+  enable_masks: True
+  use_augmentation: True
+  upsampler_type: "Deconv1x"
+  layer_normalization: "batch_norm"
+  loss_type: "smooth_l1"
+  loss_weights: {"valid": 1.0, "hole": 0.8}
+
+  optimizer: "AdamW"
+  weight_decay:
+    min: 0.001
+    max: 1.
+  start_lr:
+    min: 1E-6
+    max: 1E-1
+  max_steps: 18000
+  local_batch_size:
+    - 2
+    - 4
+  lr_schedule:
+    - type: "multistep"
+      milestones:
+        - 5000
+      decay_rate: 0.1
+    - type": "multistep"
+      milestones: 
+        - 10000
+      decay_rate: 0.1
+    - type: "cosine_annealing"
+      t_max: 500 
+      eta_min: 0
+    - type: "cosine_annealing"
+      t_max: 1000
+      eta_min: 0
+  adam_eps: 1E-8
+
+  validation_frequency: 100
+  training_visualization_frequency: 500
+  validation_visualization_frequency: 50
+  logging_frequency: 50
+  save_frequency: 100000
+
+  # trial config
+  num_trials: 32
+  max_concurrent_trials: 15
+
+  enable_gds: False
+  max_intra_threads: 1
+  enable_amp: True
+  

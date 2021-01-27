@@ -225,23 +225,64 @@ class SphericalRegression(object):
                 r, theta, phi, area, data, label = map(lambda t: t.to(self.device), (r, theta, phi, area, data, label))
 
                 # forward pass
-                #with amp.autocast(enabled = self.config["enable_amp"]):
-                #outputs = self.net(r, theta, phi, area, data)
-                #    loss = self.criterion(outputs, label)
+                with amp.autocast(enabled = self.config["enable_amp"]):
+                    outputs = self.net(r, theta, phi, area, data)
+                #loss = self.criterion(outputs, label)
 
                 # crosscheck with numpy
-                theta_arr = theta.cpu().numpy()
-                phi_arr = phi.cpu().numpy()
-                from architecture.common.spherical import SphericalHarmonicY
-                from scipy.special import sph_harm
-                l = 1
-                m = 0
-                sphy_torch_arr = SphericalHarmonicY(l, m, theta, phi).cpu().numpy()[0,:10]
-                sphy_arr = sph_harm(m, l, phi_arr[0,0:10], theta_arr[0,0:10])
-                #print(np.abs(sphy_torch_arr - sphy_arr))
-                print(sphy_torch_arr, "\n", sphy_arr)
+                lmax = 3
+                theta_arr = np.expand_dims(theta.cpu().numpy()[0, ...], axis=1)
+                phi_arr = np.expand_dims(phi.cpu().numpy()[0, ...], axis=1)
+                area_arr = np.expand_dims(area.cpu().numpy()[0, ...], axis=1)
+                data_arr = data.cpu().numpy()[0, :, :2]
+                import math
+                from architecture.common.spherical import SphericalHarmonicY, LegendreP, SphericalFT, InverseSphericalFT, SphericalConv
+                from scipy.special import sph_harm, lpmv
+                sft = SphericalFT(lmax = lmax)
+                isft = InverseSphericalFT(lmax = lmax)
+                sconv = SphericalConv(lmax = lmax, num_in_channels = 45, num_out_channels = 45, activation = None).to(self.device)
+                outputs_torch_arr = sft(theta, phi, area, data)
+                sft_torch_arr = outputs_torch_arr.cpu().numpy()[0, :, :2]
+                outputs_torch_arr = isft(theta, phi, outputs_torch_arr).cpu().numpy()[0, :10, :2]
+                conv_torch_arr = sconv(theta, phi, area, data).cpu().detach().numpy()[0,:10,:2]
+                
+                # numpy
+                # SFT
+                results = []
+                for l in range(0, lmax+1):
+                    for m in range(0, l+1):
+                        results.append(np.sum(area_arr * data_arr * (-1)**m * sph_harm(m, l, -phi_arr, theta_arr), axis=0))
+                sft_arr = np.stack(results, axis=0)[:, :2]
+
+                # conv:
+                count = 0
+                for l in range(0, lmax+1):
+                    coeff = 2.*math.pi*math.sqrt(4.*math.pi / (2.*l+1.))
+                    for m in range(0, l+1):
+                        results[count] *= coeff
+                        count += 1
+                
+                # ISFT 
+                outputs_arr = results[0] * sph_harm(0, 0, phi_arr, theta_arr)
+                count = 1
+                for l in range(1, lmax+1):
+                    outputs_arr += results[count] * sph_harm(0, l, phi_arr, theta_arr)
+                    count += 1
+                    for m in range(1, l+1):
+                        sph_tmp = (-1)**m * sph_harm(m, l, phi_arr, theta_arr)
+                        outputs_arr += 2. * (np.real(results[count]) * np.real(sph_tmp) - np.imag(results[count]) * np.imag(sph_tmp))
+                        count += 1
+                outputs_arr = outputs_arr[:10, :2]
+                #    #sphy_torch_arr = LegendreP(l, m, torch.cos(theta)).cpu().numpy()[0,:10]
+                #    #sphy_arr = lpmv(m, l, np.cos(theta_arr[0,0:10]))
+                #    sphy_torch_arr = SphericalHarmonicY(l, m, theta, phi).cpu().numpy()[0,:10]
+                #    sphy_arr = (-1)**m * sph_harm(m, l, phi_arr[0,0:10], theta_arr[0,0:10])
+                #    #if not np.allclose(sphy_arr, sphy_torch_arr, rtol=1e-5):
+                #    print(f"{l}, {m}:\n", sphy_torch_arr, "\n", sphy_arr, "\n\n")
                 #outputs_arr = outputs.cpu().numpy()
-                print(outputs_arr)
+                #print(outputs_arr)
+                #print("SFT: \n", sft_torch_arr, "\n", sft_arr)
+                print("CONV: \n",conv_torch_arr, "\n", outputs_arr)
                 sys.exit(1)
 
                 ## average loss

@@ -14,8 +14,8 @@ export OMPI_MCA_btl=^openib
 export CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
 #total number of ranks
-config_name="regression_hires_hpo.yaml"
-group_tag="hires_hpo_regression"
+config_name="regression_hires_mixed_hpo.yaml"
+group_tag="hires_mixed_hpo_regression"
 
 #mpi options
 mpioptions="--allow-run-as-root --map-by ppr:8:socket:PE=3"

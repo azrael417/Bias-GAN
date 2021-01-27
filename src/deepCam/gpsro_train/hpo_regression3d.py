@@ -61,6 +61,9 @@ def main(pargs):
         if "channels" not in config:
             config["channels"] = list(range(0,45))
         config["checkpoint"] = pargs.checkpoint
+
+        if "use_augmentation" not in config:
+            config["use_augmentation"] = False
     else:
         config = hyperparameter_defaults
 
