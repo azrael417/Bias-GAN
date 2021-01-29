@@ -1,4 +1,6 @@
 import math
+import numpy as np
+
 import torch
 import torch.nn.functional as F
 from torch import nn, cuda
@@ -40,11 +42,22 @@ def LegendreP(l, m, x):
             prefac = 1./float(l-m)
             return prefac * ((2.*l-1.) * x * LegendreP(l-1, m, x) - (l-1.+m) * LegendreP(l-2, m, x))
 
+
+# compute n! / m! with n > m efficiently
+def partial_factorial(n, m):
+    if n == m:
+        return 1.
+    if n < m:
+        return 1./float(np.prod(range(n+1, m+1)))
+    else:
+        return float(np.prod(range(m+1, n+1)))
+
     
 def SphYCoeff(l, m):
+    prefact = 1. #np.sqrt(partial_factorial(l-m, l+m))
     numerator = (2.*l+1.) * math.factorial(l-m)
     denominator = 4. * math.pi * math.factorial(l+m)
-    return (-1.)**m * math.sqrt(numerator / denominator)
+    return (-1.)**m * prefact * math.sqrt(numerator / denominator)
 
 
 def SphericalHarmonicY(l, m, theta, phi):
@@ -61,12 +74,11 @@ class SphericalFT(nn.Module):
 
         # building lookup tables:
         self.coeffs = {}
+        # l = m = 0
         self.coeffs[(0,0)] = SphYCoeff(0, 0)
-        self.elem_count = 1
         for l in range(1, self.lmax+1):
             for m in range(0, l+1):
                 self.coeffs[(l,m)] = SphYCoeff(l, m)
-                self.elem_count += 1
 
                 
     def forward(self, theta, phi, areas, values):
@@ -154,12 +166,12 @@ class InverseSphericalFT(nn.Module):
         # phi: N x num_points
         # values: N x num_components x num_out_channels
 
-        # reshape input                                                                                                                                  
+        # reshape input
         theta_out = torch.unsqueeze(theta_out, dim=2)
         phi_out = torch.unsqueeze(phi_out, dim=2)
 
         # prereqs
-        #azimuth
+        # azimuth
         exp_imphi_out = {}
         for m in range(1, self.lmax+1):
             cos_mphi = torch.cos(m*phi_out)
@@ -369,6 +381,8 @@ class SphericalConvSpectral(nn.Module):
             self.coeffs[l] = 2.*math.pi*math.sqrt(4.*math.pi / (2.*l+1.))
             for m in range(0, l+1):
                 self.elem_count += 1
+                if m > 0:
+                    self.elem_count += 1
 
         # init weights: only m=0 are relevant
         self.weights = nn.ParameterList([nn.Parameter(torch.randn((self.n_in, self.n_out))) for i in range(self.lmax+1)])
@@ -387,22 +401,28 @@ class SphericalConvSpectral(nn.Module):
     def forward(self, x):
         # sanity check
         assert(x.shape[1] == self.elem_count), \
-            f"Error, expected {self.elem_count} elements in dim=1 but got {values.shape[1]}"
+            f"Error, expected {self.elem_count} elements in dim=1 but got {x.shape[1]}"
         
         # x: N x num_comp x num_in_channels
-        xs = torch.split(x, dims=1)
+        xs = torch.split(x, 1, dim = 1)
 
         # compute convolution
         # l = m = 0
-        xs[0] = self.coeffs[0] * torch.matmul(xs[0], self.weights[0])
+        results = []
+        results.append(self.coeffs[0] * torch.matmul(xs[0], self.weights[0]))
         count = 1
         for l in range(1, self.lmax+1):
-            for m in range(0, l+1):
-                xs[count] = self.coeffs[l] * torch.matmul(xs[count], self.weights[l])
+            # m = 0
+            results.append(self.coeffs[l] * torch.matmul(xs[count], self.weights[l]))
+            count += 1
+            for m in range(1, l+1):
+                results.append(self.coeffs[l] * torch.matmul(xs[count], self.weights[l]))
+                count += 1
+                results.append(self.coeffs[l] * torch.matmul(xs[count], self.weights[l]))
                 count += 1
 
         # concatenate again
-        out = torch.cat(xs, dim=1)
+        out = torch.cat(xs, dim = 1)
 
         # normalize if requested
         if self.norm is not None:
@@ -411,6 +431,6 @@ class SphericalConvSpectral(nn.Module):
 
         # activation
         if self.activation is not None:
-	    out = self.activation(out)
-
+            out = self.activation(out)
+            
         return out

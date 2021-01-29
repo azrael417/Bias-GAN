@@ -110,7 +110,8 @@ class SphericalRegression(object):
         # Define architecture
         n_input_channels = 45
         n_output_channels = 45
-        self.net = sph.SphericalConvUNet(num_input_channels = n_input_channels,
+        self.net = sph.SphericalConvUNet(lmax = 16,
+                                         num_input_channels = n_input_channels,
                                          num_output_channels = n_output_channels)
         self.net.to(self.device)
 
@@ -224,12 +225,14 @@ class SphericalRegression(object):
                 # upload to device
                 r, theta, phi, area, data, label = map(lambda t: t.to(self.device), (r, theta, phi, area, data, label))
 
+                data.fill_(1.)
+                
                 # forward pass
-                with amp.autocast(enabled = self.config["enable_amp"]):
-                    outputs = self.net(r, theta, phi, area, data)
+                #with amp.autocast(enabled = self.config["enable_amp"]):
+                r_out, theta_out, phi_out, area_out, data_out = self.net(r, theta, phi, area, data)
                 #loss = self.criterion(outputs, label)
 
-                print(outputs.cpu().detach().numpy())
+                #print(data_out.shape, data_out.cpu().detach().numpy())
                 sys.exit(1)
 
                 ## average loss

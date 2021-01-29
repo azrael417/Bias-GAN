@@ -33,8 +33,9 @@ RUN conda install -y -c conda-forge ruamel.yaml
 # raytune:
 RUN pip install -U ray && pip install ray[tune] && pip install hyperopt
 
-# triangulation stuff
-RUN pip install stripy cartopy
+# triangulation and spherical graph stuff
+RUN pip install stripy cartopy healpy xarray trimesh scikit-learn && \
+    pip install git+https://github.com/epfl-lts2/pygsp@sphere-graphs
 
 #install numpy with pytorch extensions
 RUN mkdir -p /opt
