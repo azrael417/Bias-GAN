@@ -126,6 +126,7 @@ def main():
 
     if not os.path.isfile(os.path.join(stats_dir, "stats_graph.npy")) or recompute_stats:
         # determine optimal kernel width for data set: set to average of all computed distances
+        print("Computing summary statistics")
         results = []
         if max_workers > 1: 
             with cf.ProcessPoolExecutor(max_workers = max_workers) as executor:
@@ -151,6 +152,7 @@ def main():
 
     
     # iterate over tags in parallel fashion
+    print("Preprocessing data")
     if max_workers > 1:
         with cf.ProcessPoolExecutor(max_workers = max_workers) as executor:
             futures = [executor.submit(preprocess, file_root, tag, output_dir,
