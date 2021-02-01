@@ -19,42 +19,48 @@ class GraphBatch:
         files = [t[3] for t in tensors]
 
         # data and label can just be padded:
-        np_max = max([data.shape[0]])
+        np_max = max([t.shape[0] for t in data])
         pad_len = [np_max-t.shape[0] for t in data]
         data = [np.pad(t, ((0, pl), (0,0)), mode='constant', constant_values=0) for pl, t in zip(pad_len, data)]
         label = [np.pad(t, ((0, pl), (0,0)), mode='constant', constant_values=0) for pl, t in zip(pad_len, label)]
-        mask = [np.ones((np_max), dtype=np.int32) for _ in data]
-        [t[-pl:] = 0 for pl, t in  zip(pad_len, mask)]
+        mask = []
+        for pl in pad_len:
+            tmp = np.ones((np_max), dtype=np.int32)
+            tmp[-pl:] = 0
+            mask.append(pl)
 
         # laplacian we need to create a coo tensor
         if not fuse_batch_dim_laplacian:
             # create a (batch_size, np_max, np_max) shapes laplacian
-            indices = np.concatenate([np.stack(np.full((t.nnz), idt, dtype=np.int32), t.row, t.col, axis=0) for idt, t in enumerate(laplacian)], axis=1)
-            values = np.concatenate([t.data for idt, t in enumerate(laplacian)], axis=1)
+            indices = np.concatenate([np.stack([np.full((t.nnz), idt, dtype=np.int64), t.row.astype(np.int64), t.col.astype(np.int64)], axis=0) for idt, t in enumerate(laplacian)], axis=1)
+            values = np.concatenate([t.data for idt, t in enumerate(laplacian)], axis=0)
             lap_shape = (len(tensors), np_max, np_max)
         else:
             # blow laplacian up to (np_max * batch_size, np_max * batch_size), i.e. block diagonal in batch_size:
-            indices = np.concatenate([np.stack(t.row + idt * np_max, t.col + idt * np_max, axis=0) for idt, t in enumerate(laplacian)], axis=1)
-            values = np.concatenate([t.data for idt, t in enumerate(laplacian)], axis=1)
+            indices = np.concatenate([np.stack([t.row.astype(np.int64) + idt * np_max, t.col.astype(np.int64) + idt * np_max], axis=0) for idt, t in enumerate(laplacian)], axis=1)
+            values = np.concatenate([t.data for idt, t in enumerate(laplacian)], axis=0)
             lap_shape =	(np_max * len(tensors), np_max * len(tensors))
             
         # stack all the stuff and convert to tensors
-        self.data = torch.Tensor(np.stack(data, axis=0), dtype = torch.float32)
-        self.label = torch.Tensor(np.stack(label, axis=0), dtype = torch.float32)
-        self.mask = torch.Tensor(np.stack(mask, axis=0), dtype = torch.int32)
+        self.data = torch.tensor(np.stack(data, axis=0), dtype = torch.float32)
+        self.label = torch.tensor(np.stack(label, axis=0), dtype = torch.float32)
+        self.mask = torch.tensor(np.stack(mask, axis=0), dtype = torch.int32)
         self.laplacian = torch.sparse_coo_tensor(indices, values, size=lap_shape, dtype = torch.float32).coalesce()
         self.files = files
-    
+
+    def __call__(self):
+        return self.laplacian, self.data, self.label, self.mask, self.files
+        
     def pin_memory(self):
-        self.laplacian = self.laplacian.pin_memory()
         self.data = self.data.pin_memory()
         self.label = self.label.pin_memory()
         self.mask = self.mask.pin_memory()
         return self
 
+
 def gpsro_collate_fn(tensors):
     batch = GraphBatch(tensors)
-    return batch.laplacian, batch.data, batch.label, batch.mask, batch.files
+    return batch
 
 
 #dataset class
@@ -146,7 +152,7 @@ class GPSRODataset(Dataset):
         label = self.label_scale * (label - self.label_shift)
 
         # create laplacian csr matrix
-        np = data.shape[0]
-        laplacian = sparse.coo_matrix(lap_data, (lap_row, lap_col), shape=(np, np))
+        num_points = data.shape[0]
+        laplacian = sparse.coo_matrix((lap_data, (lap_row, lap_col)), shape=(num_points, num_points))
 
         return (laplacian, data, label, self.files[idx])
