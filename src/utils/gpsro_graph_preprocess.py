@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import itertools
+from scipy import sparse
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -9,7 +10,32 @@ from tqdm import tqdm
 # parallelization
 import concurrent.futures as cf
 
-def get_coordinates(file_root, tag, altitudes):
+def preprocess_laplacian(laplacian):
+
+    def estimate_lmax(laplacian, tol=5e-3):
+        r"""Estimate the largest eigenvalue of an operator."""
+        lmax = sparse.linalg.eigsh(laplacian, k=1, tol=tol,
+                                   ncv=min(laplacian.shape[0], 10),
+                                   return_eigenvectors=False)
+        lmax = lmax[0]
+        lmax *= 1 + 2*tol  # Be robust to errors.
+        return lmax
+
+    def scale_operator(L, lmax, scale=1):
+        r"""Scale the eigenvalues from [0, lmax] to [-scale, scale]."""
+        I = sparse.identity(L.shape[0], format=L.format, dtype=L.dtype)
+        L *= 2 * scale / lmax
+        L -= I
+        return L
+
+    # preprocess
+    lmax = estimate_lmax(laplacian)
+    laplacian = scale_operator(laplacian, lmax)
+
+    return laplacian
+    
+
+def get_coordinates(file_root, tag):
     # load lon
     lon = np.load(os.path.join(file_root,"lon_"+tag+".data"), allow_pickle=True, encoding='latin1')
     # load lat
@@ -18,65 +44,104 @@ def get_coordinates(file_root, tag, altitudes):
     # compute spherical coordinates
     phi = [np.radians(x) for x in lon]
     theta = [np.radians(x) for x in lat]
-
-    # get level descriptor
-    mask = np.concatenate([np.full(t.shape[0], ida) for ida,t in enumerate(theta)], axis=0)
     
     # compute cartesian coordinates
-    xcoords = np.concatenate([a * np.cos(p) * np.sin(t) for a,p,t in zip(altitudes, phi, theta)], axis=0)
-    ycoords = np.concatenate([a * np.sin(p) * np.sin(t) for a,p,t in zip(altitudes, phi, theta)], axis=0)
-    zcoords = np.concatenate([a * np.cos(t) for a,t in zip(altitudes, theta)], axis=0)
+    xcoords = [np.cos(p) * np.sin(t) for p,t in zip(phi, theta)]
+    ycoords = [np.sin(p) * np.sin(t) for p,t in zip(phi, theta)]
+    zcoords = [np.cos(t) for t in theta]
 
-    return np.stack([xcoords, ycoords, zcoords], axis=1), mask
+    # stack now:
+    coords = [np.stack([x, y, z], axis=1) for x,y,z in zip(xcoords, ycoords, zcoords)]
+    pcoords = [np.stack([p, t], axis=1) for p,t in zip(phi, theta)]
+
+    return coords, pcoords
 
 
 def get_data(file_root, tag):
     # input
-    data_in = np.concatenate(np.load(os.path.join(file_root,"data_in_raw_"+tag+".data"), allow_pickle=True, encoding='latin1'), axis=0)
+    data_in = np.load(os.path.join(file_root,"data_in_raw_"+tag+".data"), allow_pickle=True, encoding='latin1')
     # label
-    data_out = np.concatenate(np.load(os.path.join(file_root,"data_out_raw_"+tag+".data"), allow_pickle=True, encoding='latin1'), axis=0)
+    data_out = np.load(os.path.join(file_root,"data_out_raw_"+tag+".data"), allow_pickle=True, encoding='latin1')
     
     return data_in, data_out
 
 
-def summarize(file_root, tag, altitudes, num_neighbors):
+def summarize(file_root, tag, num_neighbors):
 
     # we need this
     from sklearn.neighbors import NearestNeighbors
     
     # get coordinates
-    coords, _ = get_coordinates(file_root, tag, altitudes)
-    num_points = coords.shape[0]
+    coords, _ = get_coordinates(file_root, tag)
+    num_points = sum(c.shape[0] for c in coords)
+    
     # compute knn
-    nbrs = NearestNeighbors(n_neighbors=num_neighbors, algorithm='ball_tree').fit(coords)
-    distances, _ = nbrs.kneighbors(coords)
+    nbrs = NearestNeighbors(n_neighbors=num_neighbors, algorithm='ball_tree').fit(coords[0])
+    distances, _ = nbrs.kneighbors(coords[0])
     distance_mean = np.mean(distances)
 
     # get data
     data_in, data_out = get_data(file_root, tag)
-    data_in_mean = np.mean(data_in)
-    data_in_sq_mean = np.mean(np.square(data_in))
-    data_out_mean = np.mean(data_out)
-    data_out_sq_mean = np.mean(np.square(data_out))
+    data_in_mean = np.mean([np.mean(x) for x in data_in])
+    data_in_sq_mean = np.mean([np.mean(np.square(x)) for x in data_in])
+    data_out_mean = np.mean([np.mean(x) for x in data_out])
+    data_out_sq_mean = np.mean([np.mean(np.square(x)) for x in data_out])
 
     # return results
     return np.array([num_points, distance_mean, data_in_mean, data_in_sq_mean, data_out_mean, data_out_sq_mean], dtype = np.float64)
 
 
-def preprocess(file_root, tag, output_dir, altitudes, num_neighbors, kernel_width):
+def preprocess(file_root, tag, output_dir, altitudes, num_neighbors, kernel_width, precondition_laplacian):
 
     # we need that
+    import stripy
+    import stripy.spherical as sph
     import pygsp as pg
     from pygsp.graphs.nngraphs import nngraph as nng
     
     # vertices
-    vertices, mask = get_coordinates(file_root, tag, altitudes)
+    all_vertices, all_vertices_polar = get_coordinates(file_root, tag)
+    master_vertices = all_vertices[0]
+    master_vertices_polar = all_vertices_polar[0]
+    master_lons, master_lats = master_vertices_polar[:, 0], master_vertices_polar[:, 1] 
 
     # data
     data_in, data_out = get_data(file_root, tag)
 
+    # align data:
+    error_thrown = False
+    for ida, a in enumerate(altitudes[1:], start = 1):
+        # extract coordinates and triangulate
+        coords = all_vertices[ida]
+        pcoords = all_vertices_polar[ida]
+        lons, lats = pcoords[:, 0], pcoords[:, 1]
+
+        try:
+            spherical_triangulation = stripy.sTriangulation(lons=lons, lats=lats)
+        except Exception as err:
+            print(f"Error triangulating {tag}: {err}. Applying permutation.")
+            try:
+                spherical_triangulation = stripy.sTriangulation(lons=lons, lats=lats, permute = True)
+            except Exception as err:
+                print(f"Error triangulating {tag}: {err}. Skipping sample.")
+                error_thrown = True
+                break
+            
+
+        # interpolate
+        data_in[ida], _ = spherical_triangulation.interpolate_linear(master_lons, master_lats, data_in[ida])
+        data_out[ida], _ = spherical_triangulation.interpolate_linear(master_lons, master_lats, data_out[ida])
+
+    # if error, exit here
+    if error_thrown:
+        return
+        
+    # stack
+    data_in = np.stack(data_in, axis=-1)
+    data_out = np.stack(data_out, axis=-1)
+    
     # create graph from these:
-    graph = nng.NNGraph(features = vertices,
+    graph = nng.NNGraph(features = master_vertices,
                         standardize = False,
                         metric = 'euclidean',
                         kind = 'knn',
@@ -84,17 +149,31 @@ def preprocess(file_root, tag, output_dir, altitudes, num_neighbors, kernel_widt
                         kernel = 'exponential',
                         kernel_width = kernel_width)
 
+    # extract
+    lap = graph.L.copy()
+    
+    # precondition if requested
+    if precondition_laplacian:
+        lap = preprocess_laplacian(lap)
+
+    # convert to coo matrix:
+    lap = sparse.coo_matrix(lap)
+        
     # extract laplacian
-    l_ind = graph.L.indices
-    l_dat = graph.L.data
+    l_col = lap.col
+    l_row = lap.row
+    l_dat = lap.data
 
     # store graph
     np.savez(os.path.join(output_dir, "data_" + tag + ".npz"),
              data = data_in,
              label = data_out,
-             level_ids = mask,
+             phi = master_lons,
+             theta = master_lats,
+             r = altitudes,
              graph_nn_order = num_neighbors,
-             laplacian_indices = l_ind,
+             laplacian_col = l_col,
+             laplacian_row = l_row,
              laplacian_data = l_dat)
 
     
@@ -113,7 +192,8 @@ def main():
     altitude_tag = "geometric_altitude"
     num_neighbors = 20
     max_workers = 8
-    recompute_stats = False
+    recompute_stats = True
+    precondition_laplacian = True
 
     # create directory
     if not os.path.isdir(output_dir):
@@ -130,13 +210,12 @@ def main():
         results = []
         if max_workers > 1: 
             with cf.ProcessPoolExecutor(max_workers = max_workers) as executor:
-                futures = [executor.submit(summarize, file_root, tag,
-                                           altitudes, num_neighbors) for tag in tags]
+                futures = [executor.submit(summarize, file_root, tag, num_neighbors) for tag in tags]
                 for future in tqdm(cf.as_completed(futures)):
                     results.append(future.result())
         else:
             for tag in tqdm(tags):
-                results.append(summarize(file_root, tag, altitudes, num_neighbors))
+                results.append(summarize(file_root, tag, num_neighbors))
 
         # compute statistics:
         results = np.stack(results, axis=0)
@@ -149,20 +228,19 @@ def main():
         np.save(os.path.join(stats_dir, "stats_graph.npy"), stats)
     else:
         stats = np.load(os.path.join(stats_dir, "stats_graph.npy"))
-
     
     # iterate over tags in parallel fashion
     print("Preprocessing data")
     if max_workers > 1:
         with cf.ProcessPoolExecutor(max_workers = max_workers) as executor:
             futures = [executor.submit(preprocess, file_root, tag, output_dir,
-                                       altitudes, num_neighbors, stats[0]) for tag in tags]
+                                       altitudes, num_neighbors, stats[0], precondition_laplacian) for tag in tags]
         
             for future in tqdm(cf.as_completed(futures)):
                 continue
     else:
         for tag in tqdm(tags):
-            preprocess(file_root, tag, output_dir, altitudes, num_neighbors, stats[0])
+            preprocess(file_root, tag, output_dir, altitudes, num_neighbors, stats[0], precondition_laplacian)
             
 
 if __name__ == "__main__":
